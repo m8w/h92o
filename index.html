@@ -347,7 +347,13 @@
     <!-- AUDIO -->
     <div class="section">
       <div class="section-title">AUDIO REACT</div>
-      <button class="full-btn" id="btn-audio" onclick="toggleAudio()">ENABLE MIC</button>
+      <div class="row" id="audioDeviceRow">
+        <label>DEVICE</label>
+        <select id="sel-audio" style="font-size:9px">
+          <option value="">default</option>
+        </select>
+      </div>
+      <button class="full-btn" id="btn-audio" onclick="toggleAudio()">ENABLE</button>
       <div class="row">
         <label>AMP DISP</label>
         <input type="range" id="r-audiodsp" min="0" max="200" value="60" oninput="sync(this,'v-audiodsp')">
@@ -752,23 +758,61 @@ function connectVideoElementAudio() {
   }
 }
 
+async function enumerateAudioInputs() {
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devs.filter(d => d.kind === 'audioinput');
+    const sel = g('sel-audio');
+    // Preserve current selection if device list is refreshed
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">default</option>';
+    inputs.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      // Highlight BlackHole in the label
+      const label = d.label || ('Input ' + (i+1));
+      opt.textContent = label;
+      if (label.toLowerCase().includes('blackhole')) opt.textContent = '★ ' + label;
+      if (d.deviceId === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // Auto-select BlackHole if present and nothing else chosen
+    if (!prev) {
+      for (const opt of sel.options) {
+        if (opt.textContent.startsWith('★')) { sel.value = opt.value; break; }
+      }
+    }
+  } catch(e) {}
+}
+
 async function toggleAudio() {
   if (state.audioEnabled) {
     if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
     state.audioEnabled = false;
-    g('btn-audio').textContent = 'ENABLE MIC';
+    g('btn-audio').textContent = 'ENABLE';
     g('btn-audio').classList.remove('active');
     g('audioBarFill').style.width = '0%';
     return;
   }
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const deviceId = g('sel-audio').value;
+    const audioConstraints = deviceId
+      ? { deviceId: { exact: deviceId } }
+      : true;
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
+    // Refresh labels now that permission is granted
+    await enumerateAudioInputs();
     connectStreamAudio(micStream, 'mic');
     state.audioEnabled = true;
-    g('btn-audio').textContent = 'DISABLE MIC';
+    const label = micStream.getAudioTracks()[0]?.label || 'audio';
+    g('btn-audio').textContent = 'DISABLE';
     g('btn-audio').classList.add('active');
+    g('audioBarFill').style.width = '0%';
+    // Show active device name briefly
+    const note = label.length > 28 ? label.slice(0,26)+'…' : label;
+    g('sourceNote').textContent || (g('sourceNote').textContent = note);
   } catch(e) {
-    alert('Microphone unavailable.');
+    alert('Audio input unavailable: ' + (e.message || e));
   }
 }
 
@@ -1133,8 +1177,14 @@ function render(ts) {
 // ─────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────
-// Seed camera list silently (no permission needed for labels before getUserMedia)
+// Seed device lists (labels appear after permission; deviceIds available immediately)
 enumerateCameras();
+enumerateAudioInputs();
+// Re-enumerate if devices change (BlackHole connected/disconnected)
+navigator.mediaDevices.addEventListener('devicechange', () => {
+  enumerateCameras();
+  enumerateAudioInputs();
+});
 setSource('noise'); // safe default until source selected
 requestAnimationFrame(render);
 </script>
