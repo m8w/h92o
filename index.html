@@ -403,7 +403,7 @@
       </div>
       <div class="row">
         <label>MIX AUDIO</label>
-        <button id="btn-recaudio" onclick="toggleRecAudio()">OFF</button>
+        <button id="btn-recaudio" class="active" onclick="toggleRecAudio()">ON</button>
       </div>
       <button class="full-btn" id="btn-record" onclick="toggleRecord()">START RECORD</button>
       <div id="recTimer" style="color:var(--accent);font-size:11px;text-align:center;display:none">00:00</div>
@@ -571,12 +571,21 @@ async function startScreen() {
   try {
     screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: { width:1280, height:720, frameRate:30 },
-      audio: false
+      audio: true   // captures tab audio (Chrome) or system audio (macOS Sonoma+)
     });
     srcVideo.srcObject = screenStream;
     srcVideo.src = '';
+    srcVideo.muted = true;  // mute element — audio routed through Web Audio instead
     await srcVideo.play();
     g('sourceNote').textContent = 'Screen capture active.';
+
+    // Route any captured audio into the mix bus
+    if (screenStream.getAudioTracks().length) {
+      connectStreamAudio(screenStream, 'screen');
+    } else {
+      g('sourceNote').textContent = 'Screen capture active (no audio — select a tab or enable system audio).';
+    }
+
     // Auto-switch to noise if user stops sharing
     screenStream.getVideoTracks()[0].addEventListener('ended', () => {
       setSource('noise');
@@ -598,11 +607,15 @@ function loadFile(evt) {
   const url = URL.createObjectURL(file);
   if (file.type.startsWith('video/')) {
     srcVideo.srcObject = null;
+    srcVideo.muted = false; // allow audio from element (we route it through Web Audio)
     srcVideo.src = url;
     srcVideo.loop = true;
-    srcVideo.play();
+    srcVideo.play().then(() => {
+      // Connect video element audio into mix bus (once only — Web Audio API restriction)
+      connectVideoElementAudio();
+    }).catch(() => {});
     state.source = 'video-file';
-    g('sourceNote').textContent = 'Video: ' + file.name;
+    g('sourceNote').textContent = 'Video: ' + file.name + ' + audio';
   } else {
     const img = new Image();
     img.onload = () => { userImage = img; };
@@ -689,15 +702,59 @@ function applyColorMode(r,g_,b, brightness, t, lineIdx, totalLines) {
 }
 
 // ─────────────────────────────────────────────
-//  AUDIO
+//  SHARED AUDIO MIX BUS
+//  All sources (screen, video file, mic) connect
+//  here → analyser (reactivity) + mixDest (recording)
 // ─────────────────────────────────────────────
-let audioCtx2=null, analyser=null, freqData=null, micStream=null;
+let mixCtx       = null;   // single AudioContext
+let mixBus       = null;   // GainNode — all sources connect here
+let mixDest      = null;   // MediaStreamAudioDestinationNode (for recording)
+let analyser     = null;
+let freqData     = null;
+let micStream    = null;
+let videoSrcNode = null;   // MediaElementSourceNode for srcVideo (created once)
+
+function ensureMixCtx() {
+  if (mixCtx) return;
+  mixCtx  = new AudioContext();
+  mixBus  = mixCtx.createGain();
+  mixDest = mixCtx.createMediaStreamDestination();
+  analyser= mixCtx.createAnalyser();
+  analyser.fftSize = 256;
+  freqData= new Uint8Array(analyser.frequencyBinCount);
+  // Bus → speakers (so video/screen audio is audible)
+  mixBus.connect(mixCtx.destination);
+  // Bus → analyser (reactivity metering)
+  mixBus.connect(analyser);
+  // Bus → record destination
+  mixBus.connect(mixDest);
+}
+
+// Connect any audio tracks from a MediaStream to the mix bus
+function connectStreamAudio(stream, label) {
+  if (!stream) return;
+  const audioTracks = stream.getAudioTracks();
+  if (!audioTracks.length) return;
+  ensureMixCtx();
+  if (mixCtx.state === 'suspended') mixCtx.resume();
+  const src = mixCtx.createMediaStreamSource(stream);
+  src.connect(mixBus);
+  g('sourceNote').textContent += ' + audio';
+}
+
+// Connect the <video> element's audio to the mix bus (call once)
+function connectVideoElementAudio() {
+  ensureMixCtx();
+  if (mixCtx.state === 'suspended') mixCtx.resume();
+  if (!videoSrcNode) {
+    videoSrcNode = mixCtx.createMediaElementSource(srcVideo);
+    videoSrcNode.connect(mixBus);
+  }
+}
 
 async function toggleAudio() {
   if (state.audioEnabled) {
-    if (micStream) micStream.getTracks().forEach(t=>t.stop());
-    if (audioCtx2) audioCtx2.close();
-    analyser=null; freqData=null; micStream=null;
+    if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
     state.audioEnabled = false;
     g('btn-audio').textContent = 'ENABLE MIC';
     g('btn-audio').classList.remove('active');
@@ -706,11 +763,7 @@ async function toggleAudio() {
   }
   try {
     micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    audioCtx2 = new AudioContext();
-    analyser  = audioCtx2.createAnalyser();
-    analyser.fftSize = 256;
-    freqData  = new Uint8Array(analyser.frequencyBinCount);
-    audioCtx2.createMediaStreamSource(micStream).connect(analyser);
+    connectStreamAudio(micStream, 'mic');
     state.audioEnabled = true;
     g('btn-audio').textContent = 'DISABLE MIC';
     g('btn-audio').classList.add('active');
@@ -720,7 +773,9 @@ async function toggleAudio() {
 }
 
 function updateAudio() {
-  if (!analyser) { state.audioLevel=0; return; }
+  if (!analyser || !freqData) { state.audioLevel=0; return; }
+  // Resume context if blocked by autoplay policy
+  if (mixCtx && mixCtx.state === 'suspended') mixCtx.resume();
   analyser.getByteFrequencyData(freqData);
   let sum=0; for(let i=0;i<freqData.length;i++) sum+=freqData[i];
   state.audioLevel = sum / freqData.length / 128;
@@ -842,7 +897,7 @@ function exportFrame() {
   a.click();
 }
 
-let recWithAudio = false;
+let recWithAudio = true; // default ON now that we have real source audio
 function toggleRecAudio() {
   recWithAudio = !recWithAudio;
   const b = g('btn-recaudio');
@@ -856,15 +911,13 @@ function toggleRecord() {
   if (!state.recording) {
     recChunks = [];
 
-    // Build composite stream: canvas video + optional mic audio
+    // Build composite stream: canvas video + mix bus audio
     const canvasStream = output.captureStream(30);
-    let finalStream = canvasStream;
+    let finalStream    = canvasStream;
 
-    if (recWithAudio && micStream) {
-      const audioCtxRec = new AudioContext();
-      const dest = audioCtxRec.createMediaStreamDestination();
-      audioCtxRec.createMediaStreamSource(micStream).connect(dest);
-      const audioTrack = dest.stream.getAudioTracks()[0];
+    if (recWithAudio && mixDest) {
+      // mixDest already has screen/video-file/mic audio merged
+      const audioTrack = mixDest.stream.getAudioTracks()[0];
       if (audioTrack) {
         finalStream = new MediaStream([
           ...canvasStream.getVideoTracks(),
