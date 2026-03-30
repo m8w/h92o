@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUTT-ETRA — Video Synthesizer</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #111;
+    --border: #222;
+    --accent: #00ff88;
+    --dim: #444;
+    --text: #ccc;
+    --label: #666;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    font-weight: normal;
+  }
+  header .subtitle { color: var(--label); font-size: 10px; letter-spacing: 2px; }
+  #fps-display { color: var(--accent); font-size: 11px; }
+
+  /* ── MAIN LAYOUT ── */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── CANVAS AREA ── */
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+  }
+  #output {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
+  }
+  #sourceVideo, #sourceCanvas {
+    display: none;
+    position: absolute;
+  }
+
+  /* ── RIGHT PANEL ── */
+  .panel {
+    width: 220px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--panel);
+    scrollbar-width: thin;
+    scrollbar-color: var(--dim) transparent;
+  }
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+  .section-title {
+    color: var(--accent);
+    letter-spacing: 2px;
+    font-size: 10px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 6px;
+  }
+  .row label {
+    color: var(--label);
+    font-size: 10px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    min-width: 60px;
+  }
+  .row .val {
+    color: var(--accent);
+    font-size: 10px;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--dim);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  button {
+    background: var(--border);
+    border: 1px solid var(--dim);
+    color: var(--text);
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.active { border-color: var(--accent); color: var(--accent); background: #001a0e; }
+
+  select {
+    background: var(--border);
+    border: 1px solid var(--dim);
+    color: var(--text);
+    padding: 3px 6px;
+    font-family: inherit;
+    font-size: 10px;
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .full-btn {
+    width: 100%;
+    padding: 6px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  #audioBar {
+    height: 4px;
+    background: var(--dim);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  #audioBarFill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.05s;
+  }
+
+  .note {
+    color: var(--label);
+    font-size: 9px;
+    line-height: 1.5;
+  }
+
+  /* ── BOTTOM BAR ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 4px 14px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-shrink: 0;
+    background: var(--panel);
+  }
+  footer .stat { color: var(--label); font-size: 10px; }
+  footer .stat span { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>RUTT-ETRA</h1>
+    <div class="subtitle">VIDEO SYNTHESIZER — EXTENDED</div>
+  </div>
+  <div id="fps-display">-- fps</div>
+</header>
+
+<div class="workspace">
+
+  <div class="canvas-wrap">
+    <canvas id="output"></canvas>
+    <video id="sourceVideo" autoplay muted playsinline></video>
+    <canvas id="sourceCanvas"></canvas>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel">
+
+    <!-- SOURCE -->
+    <div class="section">
+      <div class="section-title">SOURCE</div>
+      <div class="btn-row">
+        <button id="btn-cam" class="active" onclick="setSource('cam')">WEBCAM</button>
+        <button id="btn-img" onclick="setSource('image')">IMAGE</button>
+        <button id="btn-noise" onclick="setSource('noise')">NOISE</button>
+      </div>
+      <input type="file" id="fileInput" accept="image/*,video/*" style="display:none" onchange="loadFile(event)">
+      <button class="full-btn" id="fileBtn" onclick="document.getElementById('fileInput').click()" style="display:none">LOAD FILE</button>
+      <div class="note" id="sourceNote">Click WEBCAM to start camera feed.</div>
+    </div>
+
+    <!-- SCAN -->
+    <div class="section">
+      <div class="section-title">SCAN</div>
+      <div class="row">
+        <label>LINES</label>
+        <input type="range" id="r-lines" min="20" max="480" value="120" oninput="sync(this,'v-lines')">
+        <span class="val" id="v-lines">120</span>
+      </div>
+      <div class="row">
+        <label>DISPLACE</label>
+        <input type="range" id="r-disp" min="0" max="200" value="60" oninput="sync(this,'v-disp')">
+        <span class="val" id="v-disp">60</span>
+      </div>
+      <div class="row">
+        <label>Z DEPTH</label>
+        <input type="range" id="r-zdepth" min="0" max="200" value="0" oninput="sync(this,'v-zdepth')">
+        <span class="val" id="v-zdepth">0</span>
+      </div>
+      <div class="row">
+        <label>THICKNESS</label>
+        <input type="range" id="r-thick" min="1" max="8" value="1" step="0.5" oninput="sync(this,'v-thick')">
+        <span class="val" id="v-thick">1</span>
+      </div>
+    </div>
+
+    <!-- COLOR -->
+    <div class="section">
+      <div class="section-title">COLOR</div>
+      <div class="row" style="flex-wrap:wrap; gap:4px; justify-content:flex-start;">
+        <button class="active" id="col-mono" onclick="setColor('mono')">MONO</button>
+        <button id="col-green" onclick="setColor('green')">GREEN</button>
+        <button id="col-fire" onclick="setColor('fire')">FIRE</button>
+        <button id="col-ice" onclick="setColor('ice')">ICE</button>
+        <button id="col-rgb" onclick="setColor('rgb')">RGB</button>
+        <button id="col-neon" onclick="setColor('neon')">NEON</button>
+      </div>
+      <div class="row">
+        <label>BRIGHTNESS</label>
+        <input type="range" id="r-bright" min="0.2" max="3" step="0.1" value="1" oninput="sync(this,'v-bright')">
+        <span class="val" id="v-bright">1</span>
+      </div>
+      <div class="row">
+        <label>CONTRAST</label>
+        <input type="range" id="r-contrast" min="0.2" max="3" step="0.1" value="1" oninput="sync(this,'v-contrast')">
+        <span class="val" id="v-contrast">1</span>
+      </div>
+    </div>
+
+    <!-- EFFECTS -->
+    <div class="section">
+      <div class="section-title">EFFECTS</div>
+      <div class="row">
+        <label>FEEDBACK</label>
+        <input type="range" id="r-feedback" min="0" max="0.95" step="0.01" value="0" oninput="sync(this,'v-feedback')">
+        <span class="val" id="v-feedback">0</span>
+      </div>
+      <div class="row">
+        <label>GLITCH</label>
+        <input type="range" id="r-glitch" min="0" max="1" step="0.01" value="0" oninput="sync(this,'v-glitch')">
+        <span class="val" id="v-glitch">0</span>
+      </div>
+      <div class="row">
+        <label>WAVE X</label>
+        <input type="range" id="r-wavex" min="0" max="60" value="0" oninput="sync(this,'v-wavex')">
+        <span class="val" id="v-wavex">0</span>
+      </div>
+      <div class="row">
+        <label>WAVE Y</label>
+        <input type="range" id="r-wavey" min="0" max="60" value="0" oninput="sync(this,'v-wavey')">
+        <span class="val" id="v-wavey">0</span>
+      </div>
+      <div class="row">
+        <label>MIRROR</label>
+        <select id="sel-mirror">
+          <option value="none">NONE</option>
+          <option value="h">HORIZONTAL</option>
+          <option value="v">VERTICAL</option>
+          <option value="both">BOTH</option>
+          <option value="kaleid">KALEIDOSCOPE</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>INVERT</label>
+        <button id="btn-invert" onclick="toggleInvert()">OFF</button>
+      </div>
+    </div>
+
+    <!-- AUDIO -->
+    <div class="section">
+      <div class="section-title">AUDIO REACT</div>
+      <button class="full-btn" id="btn-audio" onclick="toggleAudio()">ENABLE MIC</button>
+      <div class="row">
+        <label>AMP DISP</label>
+        <input type="range" id="r-audiodsp" min="0" max="200" value="60" oninput="sync(this,'v-audiodsp')">
+        <span class="val" id="v-audiodsp">60</span>
+      </div>
+      <div class="row">
+        <label>AMP WAVE</label>
+        <input type="range" id="r-audiowave" min="0" max="60" value="20" oninput="sync(this,'v-audiowave')">
+        <span class="val" id="v-audiowave">20</span>
+      </div>
+      <div id="audioBar"><div id="audioBarFill"></div></div>
+    </div>
+
+    <!-- ROTATE/ANIMATE -->
+    <div class="section">
+      <div class="section-title">ANIMATE</div>
+      <div class="row">
+        <label>ROTATE</label>
+        <input type="range" id="r-rotate" min="0" max="360" value="0" oninput="sync(this,'v-rotate')">
+        <span class="val" id="v-rotate">0</span>
+      </div>
+      <div class="row">
+        <label>AUTO-ROT</label>
+        <input type="range" id="r-autorot" min="-3" max="3" step="0.1" value="0" oninput="sync(this,'v-autorot')">
+        <span class="val" id="v-autorot">0</span>
+      </div>
+      <div class="row">
+        <label>ZOOM</label>
+        <input type="range" id="r-zoom" min="0.2" max="4" step="0.05" value="1" oninput="sync(this,'v-zoom')">
+        <span class="val" id="v-zoom">1</span>
+      </div>
+      <div class="row">
+        <label>SPEED</label>
+        <input type="range" id="r-speed" min="0" max="2" step="0.05" value="1" oninput="sync(this,'v-speed')">
+        <span class="val" id="v-speed">1</span>
+      </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="section">
+      <div class="section-title">OUTPUT</div>
+      <button class="full-btn" onclick="exportFrame()">SAVE FRAME</button>
+      <button class="full-btn" id="btn-record" onclick="toggleRecord()">START RECORD</button>
+    </div>
+
+    <!-- PRESETS -->
+    <div class="section">
+      <div class="section-title">PRESETS</div>
+      <div class="btn-row">
+        <button onclick="loadPreset('classic')">CLASSIC</button>
+        <button onclick="loadPreset('deep')">DEEP</button>
+        <button onclick="loadPreset('storm')">STORM</button>
+        <button onclick="loadPreset('ghost')">GHOST</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="stat">SOURCE <span id="stat-src">—</span></div>
+  <div class="stat">LINES <span id="stat-lines">—</span></div>
+  <div class="stat">DISP <span id="stat-disp">—</span></div>
+  <div class="stat">COLOR <span id="stat-col">MONO</span></div>
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+const state = {
+  source: 'cam',
+  colorMode: 'mono',
+  invert: false,
+  audioEnabled: false,
+  recording: false,
+  rotation: 0,
+  time: 0,
+  audioLevel: 0,
+  audioFreqData: null,
+};
+
+// ─────────────────────────────────────────────
+//  CANVAS SETUP
+// ─────────────────────────────────────────────
+const output   = document.getElementById('output');
+const ctx      = output.getContext('2d');
+const srcVideo = document.getElementById('sourceVideo');
+const srcCanvas= document.getElementById('sourceCanvas');
+const srcCtx   = srcCanvas.getContext('2d');
+
+const W = 640, H = 480;
+output.width  = W;
+output.height = H;
+srcCanvas.width  = W;
+srcCanvas.height = H;
+
+// Off-screen for feedback
+const fbCanvas = document.createElement('canvas');
+fbCanvas.width = W; fbCanvas.height = H;
+const fbCtx = fbCanvas.getContext('2d');
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+function g(id) { return document.getElementById(id); }
+function fv(id) { return parseFloat(g(id).value); }
+
+function sync(el, valId) {
+  g(valId).textContent = parseFloat(el.value).toFixed(
+    el.step && el.step < 1 ? 2 : 0
+  );
+  updateStats();
+}
+
+function updateStats() {
+  g('stat-lines').textContent = g('r-lines').value;
+  g('stat-disp').textContent  = g('r-disp').value;
+  g('stat-col').textContent   = state.colorMode.toUpperCase();
+  g('stat-src').textContent   = state.source.toUpperCase();
+}
+updateStats();
+
+// ─────────────────────────────────────────────
+//  SOURCE MANAGEMENT
+// ─────────────────────────────────────────────
+let camStream = null;
+let userImage = null;
+let noisePhase = 0;
+
+function setSource(src) {
+  state.source = src;
+  ['cam','img','noise'].forEach(s => g('btn-'+s).classList.toggle('active', s===src));
+  g('fileBtn').style.display  = src==='image'  ? 'block' : 'none';
+  g('sourceNote').textContent =
+    src==='cam'   ? 'Click WEBCAM to start camera feed.' :
+    src==='image' ? 'Click LOAD FILE to choose image/video.' :
+                    'Animated noise source active.';
+  if (src==='cam') startCam();
+  if (src!=='cam' && camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  updateStats();
+}
+
+async function startCam() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({video:{width:640,height:480},audio:false});
+    srcVideo.srcObject = camStream;
+    await srcVideo.play();
+    g('sourceNote').textContent = 'Camera active.';
+  } catch(e) {
+    g('sourceNote').textContent = 'Camera unavailable — using noise.';
+    state.source = 'noise';
+    g('btn-cam').classList.remove('active');
+    g('btn-noise').classList.add('active');
+  }
+}
+
+function loadFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  if (file.type.startsWith('video/')) {
+    srcVideo.src = url;
+    srcVideo.loop = true;
+    srcVideo.play();
+    state.source = 'video-file';
+    g('sourceNote').textContent = 'Video file: ' + file.name;
+  } else {
+    const img = new Image();
+    img.onload = () => { userImage = img; };
+    img.src = url;
+    g('sourceNote').textContent = 'Image: ' + file.name;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  NOISE GENERATOR
+// ─────────────────────────────────────────────
+function drawNoise(t) {
+  const d = srcCtx.createImageData(W, H);
+  const buf = d.data;
+  for (let y=0; y<H; y++) {
+    for (let x=0; x<W; x++) {
+      const i = (y*W+x)*4;
+      // Layered sine noise
+      const v = Math.sin(x*0.03+t)*60 + Math.sin(y*0.05+t*0.7)*40
+               + Math.sin((x+y)*0.04+t*1.3)*30 + Math.random()*25;
+      const c = Math.max(0, Math.min(255, 128+v));
+      buf[i]=buf[i+1]=buf[i+2]=c; buf[i+3]=255;
+    }
+  }
+  srcCtx.putImageData(d, 0, 0);
+}
+
+// ─────────────────────────────────────────────
+//  GRAB SOURCE PIXELS
+// ─────────────────────────────────────────────
+function grabSource(t) {
+  const s = state.source;
+  if (s==='cam' || s==='video-file') {
+    if (srcVideo.readyState >= 2) {
+      srcCtx.drawImage(srcVideo, 0, 0, W, H);
+    }
+  } else if (s==='image') {
+    if (userImage) srcCtx.drawImage(userImage, 0, 0, W, H);
+    else drawNoise(t);
+  } else {
+    drawNoise(t);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  COLOR PALETTES
+// ─────────────────────────────────────────────
+function setColor(mode) {
+  state.colorMode = mode;
+  ['mono','green','fire','ice','rgb','neon'].forEach(m =>
+    g('col-'+m).classList.toggle('active', m===mode)
+  );
+  updateStats();
+}
+
+function applyColorMode(r,g_,b, brightness, t, lineIdx, totalLines) {
+  const lum = (r*0.299 + g_*0.587 + b*0.114) / 255;
+  const L   = Math.pow(lum * brightness, 1) * 255;
+
+  switch (state.colorMode) {
+    case 'mono':  return `rgb(${L|0},${L|0},${L|0})`;
+    case 'green': return `rgb(0,${L|0},${(L*0.3)|0})`;
+    case 'fire': {
+      const v = lum*brightness;
+      const R = Math.min(255, v*2*255)|0;
+      const G = Math.max(0, Math.min(255, (v*2-0.5)*255))|0;
+      const B = Math.max(0, Math.min(255, (v*2-1.5)*255))|0;
+      return `rgb(${R},${G},${B})`;
+    }
+    case 'ice': {
+      const v = lum*brightness;
+      return `rgb(${(v*0.5*255)|0},${(v*0.8*255)|0},${Math.min(255,v*1.2*255)|0})`;
+    }
+    case 'rgb': {
+      const hue = (lineIdx/totalLines*360 + t*30)%360;
+      return `hsla(${hue|0},100%,${Math.min(95,lum*brightness*80+20)|0}%,1)`;
+    }
+    case 'neon': {
+      const hue = (lum*360 + t*60)%360;
+      return `hsla(${hue|0},100%,${50+lum*40}%,1)`;
+    }
+    default: return `rgb(${L|0},${L|0},${L|0})`;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  AUDIO
+// ─────────────────────────────────────────────
+let audioCtx2=null, analyser=null, freqData=null, micStream=null;
+
+async function toggleAudio() {
+  if (state.audioEnabled) {
+    if (micStream) micStream.getTracks().forEach(t=>t.stop());
+    if (audioCtx2) audioCtx2.close();
+    analyser=null; freqData=null; micStream=null;
+    state.audioEnabled = false;
+    g('btn-audio').textContent = 'ENABLE MIC';
+    g('btn-audio').classList.remove('active');
+    g('audioBarFill').style.width = '0%';
+    return;
+  }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    audioCtx2 = new AudioContext();
+    analyser  = audioCtx2.createAnalyser();
+    analyser.fftSize = 256;
+    freqData  = new Uint8Array(analyser.frequencyBinCount);
+    audioCtx2.createMediaStreamSource(micStream).connect(analyser);
+    state.audioEnabled = true;
+    g('btn-audio').textContent = 'DISABLE MIC';
+    g('btn-audio').classList.add('active');
+  } catch(e) {
+    alert('Microphone unavailable.');
+  }
+}
+
+function updateAudio() {
+  if (!analyser) { state.audioLevel=0; return; }
+  analyser.getByteFrequencyData(freqData);
+  let sum=0; for(let i=0;i<freqData.length;i++) sum+=freqData[i];
+  state.audioLevel = sum / freqData.length / 128;
+  state.audioFreqData = freqData;
+  g('audioBarFill').style.width = Math.min(100, state.audioLevel*100)+'%';
+}
+
+// ─────────────────────────────────────────────
+//  INVERT
+// ─────────────────────────────────────────────
+function toggleInvert() {
+  state.invert = !state.invert;
+  const b = g('btn-invert');
+  b.textContent = state.invert ? 'ON' : 'OFF';
+  b.classList.toggle('active', state.invert);
+}
+
+// ─────────────────────────────────────────────
+//  PRESETS
+// ─────────────────────────────────────────────
+const presets = {
+  classic: { lines:80,  disp:80,  zdepth:0,  thick:1,   feedback:0,    glitch:0,  wavex:0,  wavey:0,  bright:1,  contrast:1, color:'mono',  zoom:1, autorot:0 },
+  deep:    { lines:120, disp:120, zdepth:80, thick:1.5, feedback:0.4,  glitch:0,  wavex:20, wavey:0,  bright:1.4,contrast:1.2,color:'green', zoom:1.2,autorot:0.3 },
+  storm:   { lines:200, disp:60,  zdepth:0,  thick:1,   feedback:0.2,  glitch:0.4,wavex:40, wavey:30, bright:1.8,contrast:1.5,color:'fire',  zoom:1, autorot:-1 },
+  ghost:   { lines:60,  disp:40,  zdepth:0,  thick:2,   feedback:0.7,  glitch:0,  wavex:0,  wavey:10, bright:0.6,contrast:0.8,color:'ice',   zoom:0.9,autorot:0.1 },
+};
+
+function loadPreset(name) {
+  const p = presets[name];
+  if (!p) return;
+  const map = {
+    lines:'r-lines', disp:'r-disp', zdepth:'r-zdepth', thick:'r-thick',
+    feedback:'r-feedback', glitch:'r-glitch', wavex:'r-wavex', wavey:'r-wavey',
+    bright:'r-bright', contrast:'r-contrast', zoom:'r-zoom', autorot:'r-autorot',
+  };
+  for (const [k,id] of Object.entries(map)) {
+    if (p[k]!==undefined) {
+      g(id).value = p[k];
+      const vid = id.replace('r-','v-');
+      const step = parseFloat(g(id).step)||1;
+      g(vid).textContent = step<1 ? parseFloat(p[k]).toFixed(2) : p[k];
+    }
+  }
+  setColor(p.color);
+}
+
+// ─────────────────────────────────────────────
+//  EXPORT / RECORD
+// ─────────────────────────────────────────────
+function exportFrame() {
+  const a = document.createElement('a');
+  a.download = 'rutt-etra-' + Date.now() + '.png';
+  a.href = output.toDataURL('image/png');
+  a.click();
+}
+
+let recorder=null, recChunks=[];
+function toggleRecord() {
+  if (!state.recording) {
+    recChunks = [];
+    const stream = output.captureStream(30);
+    recorder = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp9'});
+    recorder.ondataavailable = e => recChunks.push(e.data);
+    recorder.onstop = () => {
+      const blob = new Blob(recChunks, {type:'video/webm'});
+      const a = document.createElement('a');
+      a.download = 'rutt-etra-' + Date.now() + '.webm';
+      a.href = URL.createObjectURL(blob);
+      a.click();
+    };
+    recorder.start();
+    state.recording = true;
+    g('btn-record').textContent = 'STOP RECORD';
+    g('btn-record').classList.add('active');
+  } else {
+    recorder.stop();
+    state.recording = false;
+    g('btn-record').textContent = 'START RECORD';
+    g('btn-record').classList.remove('active');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CORE RENDER — RUTT-ETRA
+// ─────────────────────────────────────────────
+let lastTime=0, frameCount=0, fpsTimer=0;
+
+function render(ts) {
+  requestAnimationFrame(render);
+
+  // Speed control
+  const dt  = Math.min(50, ts - lastTime) * fv('r-speed');
+  lastTime  = ts;
+  state.time += dt * 0.001;
+  const t   = state.time;
+
+  // FPS
+  frameCount++;
+  if (ts - fpsTimer > 1000) {
+    g('fps-display').textContent = frameCount + ' fps';
+    frameCount=0; fpsTimer=ts;
+  }
+
+  updateAudio();
+
+  // Auto-rotate
+  state.rotation = (state.rotation + fv('r-autorot') * dt * 0.001 * 60) % 360;
+  const manRot   = fv('r-rotate');
+
+  // Params
+  const numLines  = fv('r-lines') | 0;
+  const disp      = fv('r-disp');
+  const zdepth    = fv('r-zdepth');
+  const thick     = fv('r-thick');
+  const feedback  = fv('r-feedback');
+  const glitch    = fv('r-glitch');
+  const wavex     = fv('r-wavex');
+  const wavey     = fv('r-wavey');
+  const bright    = fv('r-bright');
+  const contrast  = fv('r-contrast');
+  const zoom      = fv('r-zoom');
+  const mirror    = g('sel-mirror').value;
+  const audioDsp  = fv('r-audiodsp');
+  const audioWave = fv('r-audiowave');
+  const audioLvl  = state.audioLevel;
+
+  // Grab & process source
+  grabSource(t);
+  const pxData = srcCtx.getImageData(0, 0, W, H).data;
+
+  // Feedback — composite old frame at lower opacity
+  if (feedback > 0) {
+    fbCtx.drawImage(output, 0, 0, W, H);
+  }
+
+  // Clear output
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Apply feedback
+  if (feedback > 0) {
+    ctx.globalAlpha = feedback;
+    ctx.drawImage(fbCanvas, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Rotation + zoom transform
+  const totalRot = (state.rotation + manRot) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.rotate(totalRot);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W/2, -H/2);
+
+  // Step between scan lines
+  const lineStep = H / numLines;
+
+  for (let li = 0; li < numLines; li++) {
+    const srcY     = (li / numLines * H) | 0;
+    const drawY    = li * lineStep + lineStep/2;
+
+    // sample across the line for displacement
+    ctx.lineWidth  = thick;
+    ctx.beginPath();
+
+    let firstPoint = true;
+    const numSamples = Math.max(2, W >> 1); // ~320 samples
+    const stepX    = W / numSamples;
+
+    // Glitch: random horizontal shift per line
+    const glitchShift = glitch > 0 && Math.random() < glitch * 0.15
+      ? (Math.random()-0.5) * glitch * W * 0.2 | 0
+      : 0;
+
+    for (let si = 0; si <= numSamples; si++) {
+      const srcX = (si * stepX) | 0;
+      const idx  = (srcY * W + Math.min(W-1, srcX)) * 4;
+      let r = pxData[idx], gv = pxData[idx+1], bv = pxData[idx+2];
+
+      // Contrast / invert
+      if (contrast !== 1) {
+        r = Math.max(0, Math.min(255, 128 + (r-128)*contrast));
+        gv= Math.max(0, Math.min(255, 128 + (gv-128)*contrast));
+        bv= Math.max(0, Math.min(255, 128 + (bv-128)*contrast));
+      }
+      if (state.invert) { r=255-r; gv=255-gv; bv=255-bv; }
+
+      const lum = (r*0.299 + gv*0.587 + bv*0.114) / 255;
+
+      // Vertical displacement: bright=up
+      let dy = -lum * disp * bright;
+
+      // Audio modulates displacement
+      if (state.audioEnabled && freqData) {
+        const fi = (si / numSamples * freqData.length) | 0;
+        const aval = freqData[fi] / 128;
+        dy += -aval * audioDsp * bright * 0.5;
+      }
+
+      // Wave modulations
+      dy += Math.sin(si / numSamples * Math.PI * 4 + t * 3) * wavey * audioLvl;
+      let dx = Math.sin(drawY / H * Math.PI * 4 + t * 2.5) * wavex * audioLvl;
+
+      // Z-depth: perspective scaling per line
+      let px = srcX + dx + glitchShift;
+      let py = drawY + dy;
+
+      if (zdepth > 0) {
+        const zFactor = 1 + (lum * zdepth * 0.003);
+        px = W/2 + (px - W/2) * zFactor;
+        py = H/2 + (py - H/2) * zFactor;
+      }
+
+      // Mirror
+      let drawX = px;
+      if (mirror==='h' || mirror==='both') drawX = W - px;
+      if (mirror==='kaleid') {
+        const quadX = px % (W/2);
+        drawX = si < numSamples/2 ? quadX : W/2 + quadX;
+      }
+
+      ctx.strokeStyle = applyColorMode(r, gv, bv, bright, t, li, numLines);
+
+      if (firstPoint) {
+        ctx.moveTo(drawX, py);
+        firstPoint = false;
+      } else {
+        ctx.lineTo(drawX, py);
+      }
+
+      // Also draw mirrored version if needed
+      if (mirror==='v' || mirror==='both') {
+        ctx.stroke(); ctx.beginPath();
+        const mirY = H - py;
+        ctx.moveTo(px, mirY);
+        ctx.lineTo(px, mirY);
+      }
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────
+setSource('noise'); // safe default until cam requested
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
