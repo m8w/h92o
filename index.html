@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>RUTT-ETRA — Video Synthesizer</title>
 <style>
   :root {
@@ -216,9 +218,94 @@
   }
   footer .stat { color: var(--label); font-size: 10px; }
   footer .stat span { color: var(--text); }
+
+  /* ── PANEL TOGGLE (mobile) ── */
+  #panel-toggle {
+    display: none;
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 16px;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  /* ── iOS HINT BANNER ── */
+  #ios-hint {
+    display: none;
+    background: #001a0e;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 7px 12px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  /* ── MOBILE LAYOUT ── */
+  @media (max-width: 768px) {
+    body { overflow: auto; height: 100%; min-height: 100dvh; }
+
+    header { padding: 6px 10px; }
+    header h1 { font-size: 12px; letter-spacing: 2px; }
+    header .subtitle { display: none; }
+
+    .workspace { flex-direction: column; overflow: visible; }
+
+    .canvas-wrap {
+      width: 100%;
+      height: 56vw;
+      min-height: 180px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    #output { width: 100%; height: 100%; object-fit: contain; }
+
+    #panel-toggle { display: block; }
+
+    .panel {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .panel.open { max-height: 100vh; overflow-y: auto; }
+
+    /* Bigger touch targets */
+    button { padding: 8px 10px; font-size: 11px; min-height: 36px; }
+    .full-btn { padding: 10px; font-size: 12px; }
+    input[type=range] { height: 6px; }
+    input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    input[type=range]::-moz-range-thumb    { width: 22px; height: 22px; }
+    select { padding: 6px; font-size: 11px; }
+    .row label { font-size: 11px; min-width: 66px; }
+    .row .val  { font-size: 11px; }
+    .section { padding: 12px 14px; }
+
+    footer { padding: 4px 10px; gap: 10px; flex-wrap: wrap; }
+  }
+
+  @media (max-width: 768px) and (orientation: landscape) {
+    .canvas-wrap { height: 38vw; }
+  }
 </style>
 </head>
 <body>
+
+<div id="ios-hint">
+  ★ iOS — USE CONTROL CENTER SCREEN RECORD TO CAPTURE OUTPUT &nbsp;|&nbsp; LONG-PRESS CANVAS TO SAVE FRAME
+</div>
 
 <header>
   <div>
@@ -234,6 +321,7 @@
     <canvas id="output"></canvas>
     <video id="sourceVideo" autoplay muted playsinline></video>
     <canvas id="sourceCanvas"></canvas>
+    <button id="panel-toggle" onclick="togglePanel()" title="Controls">⚙</button>
   </div>
 
   <!-- RIGHT PANEL -->
@@ -395,24 +483,37 @@
     <!-- BROADCAST / RECORD -->
     <div class="section">
       <div class="section-title">OUTPUT</div>
-      <button class="full-btn" id="btn-broadcast" onclick="toggleBroadcast()">BROADCAST WINDOW</button>
-      <div class="note" id="broadcastNote" style="margin-bottom:6px">Opens fullscreen output in a new window for OBS / capture.</div>
       <button class="full-btn" onclick="exportFrame()">SAVE FRAME</button>
-      <div class="row">
-        <label>FORMAT</label>
-        <select id="sel-recfmt">
-          <option value="video/webm;codecs=vp9">WEBM VP9</option>
-          <option value="video/webm;codecs=vp8">WEBM VP8</option>
-          <option value="video/webm">WEBM</option>
-          <option value="video/mp4">MP4</option>
-        </select>
+      <!-- Desktop-only controls: hidden on iOS -->
+      <div id="desktop-output">
+        <button class="full-btn" id="btn-broadcast" onclick="toggleBroadcast()">BROADCAST WINDOW</button>
+        <div class="note" id="broadcastNote" style="margin-bottom:6px">Opens fullscreen output in a new window for OBS / capture.</div>
+        <div class="row">
+          <label>FORMAT</label>
+          <select id="sel-recfmt">
+            <option value="video/webm;codecs=vp9">WEBM VP9</option>
+            <option value="video/webm;codecs=vp8">WEBM VP8</option>
+            <option value="video/webm">WEBM</option>
+            <option value="video/mp4">MP4</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>MIX AUDIO</label>
+          <button id="btn-recaudio" class="active" onclick="toggleRecAudio()">ON</button>
+        </div>
+        <button class="full-btn" id="btn-record" onclick="toggleRecord()">START RECORD</button>
+        <div id="recTimer" style="color:var(--accent);font-size:11px;text-align:center;display:none">00:00</div>
       </div>
-      <div class="row">
-        <label>MIX AUDIO</label>
-        <button id="btn-recaudio" class="active" onclick="toggleRecAudio()">ON</button>
+      <!-- iOS-only: screen record instructions -->
+      <div id="ios-output" style="display:none">
+        <div class="note" style="margin-bottom:8px;line-height:1.8">
+          SCREEN RECORD:<br>
+          Swipe down → Control Center<br>
+          Long-press ⏺ → pick mic if needed<br>
+          Tap ⏺ to start recording<br>
+          Tap red bar → Stop
+        </div>
       </div>
-      <button class="full-btn" id="btn-record" onclick="toggleRecord()">START RECORD</button>
-      <div id="recTimer" style="color:var(--accent);font-size:11px;text-align:center;display:none">00:00</div>
     </div>
 
     <!-- PRESETS -->
@@ -1175,8 +1276,48 @@ function render(ts) {
 }
 
 // ─────────────────────────────────────────────
+//  MOBILE / iOS
+// ─────────────────────────────────────────────
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function togglePanel() {
+  const panel = document.querySelector('.panel');
+  const open  = panel.classList.toggle('open');
+  g('panel-toggle').textContent = open ? '✕' : '⚙';
+}
+
+function setupMobile() {
+  if (!isIOS) return;
+
+  // Show iOS banner and swap output section
+  g('ios-hint').style.display    = 'block';
+  g('desktop-output').style.display = 'none';
+  g('ios-output').style.display  = 'block';
+
+  // Hide SCREEN source (getDisplayMedia unsupported on iOS)
+  const btnScreen = g('btn-screen');
+  if (btnScreen) btnScreen.style.display = 'none';
+
+  // Long-press canvas → save frame
+  let pressTimer = null;
+  output.addEventListener('touchstart', e => {
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      exportFrame();
+      // Brief flash feedback
+      output.style.opacity = '0.5';
+      setTimeout(() => output.style.opacity = '1', 150);
+    }, 600);
+  }, { passive: true });
+  output.addEventListener('touchend',   () => { clearTimeout(pressTimer); pressTimer = null; }, { passive: true });
+  output.addEventListener('touchmove',  () => { clearTimeout(pressTimer); pressTimer = null; }, { passive: true });
+}
+
+// ─────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────
+setupMobile();
 // Seed device lists (labels appear after permission; deviceIds available immediately)
 enumerateCameras();
 enumerateAudioInputs();
