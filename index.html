@@ -244,12 +244,17 @@
       <div class="section-title">SOURCE</div>
       <div class="btn-row">
         <button id="btn-cam" class="active" onclick="setSource('cam')">WEBCAM</button>
+        <button id="btn-screen" onclick="setSource('screen')">SCREEN</button>
         <button id="btn-img" onclick="setSource('image')">IMAGE</button>
         <button id="btn-noise" onclick="setSource('noise')">NOISE</button>
       </div>
+      <div class="row" id="camSelectRow" style="display:none">
+        <label>DEVICE</label>
+        <select id="sel-cam" onchange="switchCamera(this.value)" style="font-size:9px"></select>
+      </div>
       <input type="file" id="fileInput" accept="image/*,video/*" style="display:none" onchange="loadFile(event)">
       <button class="full-btn" id="fileBtn" onclick="document.getElementById('fileInput').click()" style="display:none">LOAD FILE</button>
-      <div class="note" id="sourceNote">Click WEBCAM to start camera feed.</div>
+      <div class="note" id="sourceNote">Choose a source above.</div>
     </div>
 
     <!-- SCAN -->
@@ -381,11 +386,27 @@
       </div>
     </div>
 
-    <!-- EXPORT -->
+    <!-- BROADCAST / RECORD -->
     <div class="section">
       <div class="section-title">OUTPUT</div>
+      <button class="full-btn" id="btn-broadcast" onclick="toggleBroadcast()">BROADCAST WINDOW</button>
+      <div class="note" id="broadcastNote" style="margin-bottom:6px">Opens fullscreen output in a new window for OBS / capture.</div>
       <button class="full-btn" onclick="exportFrame()">SAVE FRAME</button>
+      <div class="row">
+        <label>FORMAT</label>
+        <select id="sel-recfmt">
+          <option value="video/webm;codecs=vp9">WEBM VP9</option>
+          <option value="video/webm;codecs=vp8">WEBM VP8</option>
+          <option value="video/webm">WEBM</option>
+          <option value="video/mp4">MP4</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>MIX AUDIO</label>
+        <button id="btn-recaudio" onclick="toggleRecAudio()">OFF</button>
+      </div>
       <button class="full-btn" id="btn-record" onclick="toggleRecord()">START RECORD</button>
+      <div id="recTimer" style="color:var(--accent);font-size:11px;text-align:center;display:none">00:00</div>
     </div>
 
     <!-- PRESETS -->
@@ -407,6 +428,8 @@
   <div class="stat">LINES <span id="stat-lines">—</span></div>
   <div class="stat">DISP <span id="stat-disp">—</span></div>
   <div class="stat">COLOR <span id="stat-col">MONO</span></div>
+  <div class="stat" id="stat-broadcast" style="display:none;color:var(--accent)">● LIVE</div>
+  <div class="stat" id="stat-rec" style="display:none;color:#ff4444">● REC</div>
 </footer>
 
 <script>
@@ -469,35 +492,104 @@ updateStats();
 // ─────────────────────────────────────────────
 //  SOURCE MANAGEMENT
 // ─────────────────────────────────────────────
-let camStream = null;
-let userImage = null;
-let noisePhase = 0;
+let camStream    = null;
+let screenStream = null;
+let userImage    = null;
+let activeCamId  = null;
 
 function setSource(src) {
   state.source = src;
-  ['cam','img','noise'].forEach(s => g('btn-'+s).classList.toggle('active', s===src));
-  g('fileBtn').style.display  = src==='image'  ? 'block' : 'none';
+  ['cam','screen','img','noise'].forEach(s => {
+    const b = g('btn-'+s); if (b) b.classList.toggle('active', s===src);
+  });
+  g('fileBtn').style.display       = src==='image'  ? 'block' : 'none';
+  g('camSelectRow').style.display  = src==='cam'    ? 'flex'  : 'none';
+
+  // Stop previous streams when switching
+  if (src !== 'cam' && camStream) {
+    camStream.getTracks().forEach(t => t.stop()); camStream = null;
+  }
+  if (src !== 'screen' && screenStream) {
+    screenStream.getTracks().forEach(t => t.stop()); screenStream = null;
+  }
+
+  if (src === 'cam')    { startCam(); return; }
+  if (src === 'screen') { startScreen(); return; }
+
   g('sourceNote').textContent =
-    src==='cam'   ? 'Click WEBCAM to start camera feed.' :
-    src==='image' ? 'Click LOAD FILE to choose image/video.' :
-                    'Animated noise source active.';
-  if (src==='cam') startCam();
-  if (src!=='cam' && camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+    src === 'image' ? 'Click LOAD FILE to choose image or video.' :
+                      'Animated noise source active.';
   updateStats();
 }
 
-async function startCam() {
+async function enumerateCameras() {
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({video:{width:640,height:480},audio:false});
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const cams  = devs.filter(d => d.kind === 'videoinput');
+    const sel   = g('sel-cam');
+    sel.innerHTML = '';
+    cams.forEach((c, i) => {
+      const opt = document.createElement('option');
+      opt.value = c.deviceId;
+      opt.textContent = c.label || 'Camera ' + (i+1);
+      if (activeCamId && c.deviceId === activeCamId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (cams.length > 0 && !activeCamId) activeCamId = cams[0].deviceId;
+  } catch(e) {}
+}
+
+async function startCam(deviceId) {
+  try {
+    if (camStream) camStream.getTracks().forEach(t => t.stop());
+    const constraints = { video: { width:640, height:480 }, audio: false };
+    if (deviceId) constraints.video.deviceId = { exact: deviceId };
+    camStream = await navigator.mediaDevices.getUserMedia(constraints);
+    activeCamId = camStream.getVideoTracks()[0]?.getSettings()?.deviceId || deviceId;
     srcVideo.srcObject = camStream;
+    srcVideo.src = '';
     await srcVideo.play();
-    g('sourceNote').textContent = 'Camera active.';
+    g('sourceNote').textContent = 'Camera active — ' + (camStream.getVideoTracks()[0]?.label || 'unknown');
+    await enumerateCameras(); // labels available after getUserMedia
+    g('camSelectRow').style.display = 'flex';
+    if (activeCamId) g('sel-cam').value = activeCamId;
   } catch(e) {
     g('sourceNote').textContent = 'Camera unavailable — using noise.';
     state.source = 'noise';
     g('btn-cam').classList.remove('active');
     g('btn-noise').classList.add('active');
   }
+  updateStats();
+}
+
+async function switchCamera(deviceId) {
+  activeCamId = deviceId;
+  if (state.source === 'cam') await startCam(deviceId);
+}
+
+async function startScreen() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width:1280, height:720, frameRate:30 },
+      audio: false
+    });
+    srcVideo.srcObject = screenStream;
+    srcVideo.src = '';
+    await srcVideo.play();
+    g('sourceNote').textContent = 'Screen capture active.';
+    // Auto-switch to noise if user stops sharing
+    screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+      setSource('noise');
+      g('btn-screen').classList.remove('active');
+      g('btn-noise').classList.add('active');
+    });
+  } catch(e) {
+    g('sourceNote').textContent = 'Screen capture cancelled.';
+    state.source = 'noise';
+    g('btn-screen').classList.remove('active');
+    g('btn-noise').classList.add('active');
+  }
+  updateStats();
 }
 
 function loadFile(evt) {
@@ -505,11 +597,12 @@ function loadFile(evt) {
   if (!file) return;
   const url = URL.createObjectURL(file);
   if (file.type.startsWith('video/')) {
+    srcVideo.srcObject = null;
     srcVideo.src = url;
     srcVideo.loop = true;
     srcVideo.play();
     state.source = 'video-file';
-    g('sourceNote').textContent = 'Video file: ' + file.name;
+    g('sourceNote').textContent = 'Video: ' + file.name;
   } else {
     const img = new Image();
     img.onload = () => { userImage = img; };
@@ -542,7 +635,7 @@ function drawNoise(t) {
 // ─────────────────────────────────────────────
 function grabSource(t) {
   const s = state.source;
-  if (s==='cam' || s==='video-file') {
+  if (s==='cam' || s==='screen' || s==='video-file') {
     if (srcVideo.readyState >= 2) {
       srcCtx.drawImage(srcVideo, 0, 0, W, H);
     }
@@ -675,6 +768,71 @@ function loadPreset(name) {
 }
 
 // ─────────────────────────────────────────────
+//  BROADCAST
+// ─────────────────────────────────────────────
+let broadcastWin = null;
+let broadcastInterval = null;
+let outputStream = null;
+
+function toggleBroadcast() {
+  if (broadcastWin && !broadcastWin.closed) {
+    broadcastWin.close();
+    broadcastWin = null;
+    clearInterval(broadcastInterval);
+    broadcastInterval = null;
+    g('btn-broadcast').textContent = 'BROADCAST WINDOW';
+    g('btn-broadcast').classList.remove('active');
+    g('stat-broadcast').style.display = 'none';
+    g('broadcastNote').textContent = 'Opens fullscreen output in a new window for OBS / capture.';
+    return;
+  }
+
+  // Capture the output canvas as a live MediaStream
+  outputStream = output.captureStream(30);
+
+  // Open a blank popup, then inject a <video> that plays the canvas stream
+  broadcastWin = window.open('', 'rutt-etra-broadcast',
+    'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+  if (!broadcastWin) {
+    g('broadcastNote').textContent = 'Popup blocked — allow popups for this page.';
+    return;
+  }
+
+  const doc = broadcastWin.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><title>RUTT-ETRA LIVE</title>
+  <style>*{margin:0;padding:0;background:#000;overflow:hidden}
+  video{width:100vw;height:100vh;object-fit:contain;display:block}</style></head>
+  <body><video id="lv" autoplay muted playsinline></video></body></html>`);
+  doc.close();
+
+  // Wait for document to be ready, then assign stream
+  const tryAttach = () => {
+    const lv = broadcastWin.document.getElementById('lv');
+    if (lv) {
+      lv.srcObject = outputStream;
+      lv.play().catch(() => {});
+    }
+  };
+  // Retry a few times in case doc isn't ready
+  let attempts = 0;
+  broadcastInterval = setInterval(() => {
+    if (!broadcastWin || broadcastWin.closed) {
+      clearInterval(broadcastInterval); broadcastInterval = null; return;
+    }
+    attempts++;
+    const lv = broadcastWin.document.getElementById('lv');
+    if (lv && !lv.srcObject) { lv.srcObject = outputStream; lv.play().catch(()=>{}); }
+    if (attempts > 20) clearInterval(broadcastInterval);
+  }, 200);
+
+  g('btn-broadcast').textContent = 'CLOSE BROADCAST';
+  g('btn-broadcast').classList.add('active');
+  g('stat-broadcast').style.display = 'block';
+  g('broadcastNote').textContent = 'Broadcast window open. Use as OBS browser/window source.';
+}
+
+// ─────────────────────────────────────────────
 //  EXPORT / RECORD
 // ─────────────────────────────────────────────
 function exportFrame() {
@@ -684,29 +842,76 @@ function exportFrame() {
   a.click();
 }
 
-let recorder=null, recChunks=[];
+let recWithAudio = false;
+function toggleRecAudio() {
+  recWithAudio = !recWithAudio;
+  const b = g('btn-recaudio');
+  b.textContent = recWithAudio ? 'ON' : 'OFF';
+  b.classList.toggle('active', recWithAudio);
+}
+
+let recorder = null, recChunks = [], recStartTime = 0, recTimerInterval = null;
+
 function toggleRecord() {
   if (!state.recording) {
     recChunks = [];
-    const stream = output.captureStream(30);
-    recorder = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp9'});
-    recorder.ondataavailable = e => recChunks.push(e.data);
+
+    // Build composite stream: canvas video + optional mic audio
+    const canvasStream = output.captureStream(30);
+    let finalStream = canvasStream;
+
+    if (recWithAudio && micStream) {
+      const audioCtxRec = new AudioContext();
+      const dest = audioCtxRec.createMediaStreamDestination();
+      audioCtxRec.createMediaStreamSource(micStream).connect(dest);
+      const audioTrack = dest.stream.getAudioTracks()[0];
+      if (audioTrack) {
+        finalStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          audioTrack
+        ]);
+      }
+    }
+
+    // Pick supported mime type
+    const preferredFmt = g('sel-recfmt').value;
+    const mimeType = MediaRecorder.isTypeSupported(preferredFmt)
+      ? preferredFmt : 'video/webm';
+
+    recorder = new MediaRecorder(finalStream, { mimeType });
+    recorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
     recorder.onstop = () => {
-      const blob = new Blob(recChunks, {type:'video/webm'});
-      const a = document.createElement('a');
-      a.download = 'rutt-etra-' + Date.now() + '.webm';
-      a.href = URL.createObjectURL(blob);
+      const ext   = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob  = new Blob(recChunks, { type: mimeType });
+      const a     = document.createElement('a');
+      a.download  = 'rutt-etra-' + Date.now() + '.' + ext;
+      a.href      = URL.createObjectURL(blob);
       a.click();
     };
-    recorder.start();
+    recorder.start(1000); // collect chunks every 1s
+    recStartTime = Date.now();
     state.recording = true;
+
+    // Timer display
+    g('recTimer').style.display = 'block';
+    recTimerInterval = setInterval(() => {
+      const s = Math.floor((Date.now() - recStartTime) / 1000);
+      const mm = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s % 60).padStart(2,'0');
+      g('recTimer').textContent = mm + ':' + ss;
+    }, 500);
+
     g('btn-record').textContent = 'STOP RECORD';
     g('btn-record').classList.add('active');
+    g('stat-rec').style.display = 'block';
   } else {
     recorder.stop();
+    clearInterval(recTimerInterval);
+    g('recTimer').style.display = 'none';
     state.recording = false;
     g('btn-record').textContent = 'START RECORD';
     g('btn-record').classList.remove('active');
+    g('stat-rec').style.display = 'none';
   }
 }
 
@@ -875,7 +1080,9 @@ function render(ts) {
 // ─────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────
-setSource('noise'); // safe default until cam requested
+// Seed camera list silently (no permission needed for labels before getUserMedia)
+enumerateCameras();
+setSource('noise'); // safe default until source selected
 requestAnimationFrame(render);
 </script>
 </body>
