@@ -331,17 +331,17 @@
     <div class="section">
       <div class="section-title">SOURCE</div>
       <div class="btn-row">
-        <button id="btn-cam" class="active" onclick="setSource('cam')">WEBCAM</button>
+        <button id="btn-cam" class="active" onclick="setSource('cam')">CAMERA</button>
         <button id="btn-screen" onclick="setSource('screen')">SCREEN</button>
-        <button id="btn-img" onclick="setSource('image')">IMAGE</button>
         <button id="btn-noise" onclick="setSource('noise')">NOISE</button>
       </div>
+      <!-- File / Photos — always visible, single tap -->
+      <input type="file" id="fileInput" accept="image/*,video/*,.mov,.mp4,.m4v" style="display:none" onchange="loadFile(event)">
+      <button class="full-btn" id="fileBtn" onclick="document.getElementById('fileInput').click()">LOAD VIDEO / PHOTO</button>
       <div class="row" id="camSelectRow" style="display:none">
         <label>DEVICE</label>
         <select id="sel-cam" onchange="switchCamera(this.value)" style="font-size:9px"></select>
       </div>
-      <input type="file" id="fileInput" accept="image/*,video/*" style="display:none" onchange="loadFile(event)">
-      <button class="full-btn" id="fileBtn" onclick="document.getElementById('fileInput').click()" style="display:none">LOAD FILE</button>
       <div class="note" id="sourceNote">Choose a source above.</div>
     </div>
 
@@ -606,11 +606,10 @@ let activeCamId  = null;
 
 function setSource(src) {
   state.source = src;
-  ['cam','screen','img','noise'].forEach(s => {
+  ['cam','screen','noise'].forEach(s => {
     const b = g('btn-'+s); if (b) b.classList.toggle('active', s===src);
   });
-  g('fileBtn').style.display       = src==='image'  ? 'block' : 'none';
-  g('camSelectRow').style.display  = src==='cam'    ? 'flex'  : 'none';
+  g('camSelectRow').style.display = src==='cam' ? 'flex' : 'none';
   if (src === 'screen') g('sourceNote').textContent =
     'Pick a tab in the dialog → tick "Share tab audio" for YouTube/video sound.';
 
@@ -713,24 +712,34 @@ async function startScreen() {
 function loadFile(evt) {
   const file = evt.target.files[0];
   if (!file) return;
+
+  // Visually deactivate stream-based source buttons
+  ['cam','screen','noise'].forEach(s => {
+    const b = g('btn-'+s); if (b) b.classList.remove('active');
+  });
+  g('fileBtn').classList.add('active');
+
   const url = URL.createObjectURL(file);
-  if (file.type.startsWith('video/')) {
+  const isVideo = file.type.startsWith('video/') ||
+                  /\.(mov|mp4|m4v|webm)$/i.test(file.name);
+
+  if (isVideo) {
     srcVideo.srcObject = null;
-    srcVideo.muted = false; // allow audio from element (we route it through Web Audio)
+    srcVideo.muted = false;
     srcVideo.src = url;
     srcVideo.loop = true;
     srcVideo.play().then(() => {
-      // Connect video element audio into mix bus (once only — Web Audio API restriction)
       connectVideoElementAudio();
     }).catch(() => {});
     state.source = 'video-file';
-    g('sourceNote').textContent = 'Video: ' + file.name + ' + audio';
+    g('sourceNote').textContent = file.name;
   } else {
     const img = new Image();
-    img.onload = () => { userImage = img; };
+    img.onload = () => { userImage = img; state.source = 'image'; };
     img.src = url;
-    g('sourceNote').textContent = 'Image: ' + file.name;
+    g('sourceNote').textContent = file.name;
   }
+  updateStats();
 }
 
 // ─────────────────────────────────────────────
