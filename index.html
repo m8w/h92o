@@ -611,6 +611,8 @@ function setSource(src) {
   });
   g('fileBtn').style.display       = src==='image'  ? 'block' : 'none';
   g('camSelectRow').style.display  = src==='cam'    ? 'flex'  : 'none';
+  if (src === 'screen') g('sourceNote').textContent =
+    'Pick a tab in the dialog → tick "Share tab audio" for YouTube/video sound.';
 
   // Stop previous streams when switching
   if (src !== 'cam' && camStream) {
