@@ -59,9 +59,13 @@ static const NSUInteger kMaxFramesInFlight = 3;
 
     // Preset values captured on type switch: animation oscillates
     // around these rather than drifting off whatever the last frame
-    // left behind.
+    // left behind. Two independent parameters are animated per
+    // fractal type, each with its own base + amplitude + frequency.
+    float _baseBailout;
     float _baseMbScale;
+    float _baseMbFixedRadius2;
     float _baseIfsScale;
+    simd_float3 _baseIfsOffset;
     simd_float4 _baseJuliaC;
 
     vector_uint2 _viewportSize;
@@ -192,8 +196,11 @@ static const NSUInteger kMaxFramesInFlight = 3;
             break;
     }
 
+    _baseBailout = _bailout;
     _baseMbScale = _mbScale;
+    _baseMbFixedRadius2 = _mbFixedRadius2;
     _baseIfsScale = _ifsScale;
+    _baseIfsOffset = _ifsOffset;
     _baseJuliaC = _juliaC;
 
     _camera.azimuth = 0.9f;
@@ -274,29 +281,46 @@ static const NSUInteger kMaxFramesInFlight = 3;
     CFTimeInterval now = CFAbsoluteTimeGetCurrent();
     CFTimeInterval elapsed = now - _startTime;
 
+    // Each fractal animates two independent parameters at different
+    // frequencies/phases rather than one, so the motion reads as
+    // genuine combined movement instead of a single pulse.
     if (_animating) {
         float t = (float)elapsed;
         switch (_fractalType) {
             case FractalTypeMandelbulb:
                 _power = 8.0f + sinf(t * 0.25f) * 2.5f;
+                _bailout = _baseBailout + sinf(t * 0.11f) * 1.5f;
                 break;
             case FractalTypeMandelbox:
                 _mbScale = _baseMbScale + sinf(t * 0.2f) * 0.5f;
+                _mbFixedRadius2 = _baseMbFixedRadius2 + cosf(t * 0.13f) * 0.3f;
                 break;
             case FractalTypeMengerSponge:
                 _ifsScale = _baseIfsScale + sinf(t * 0.15f) * 0.35f;
+                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.09f) * 0.3f,
+                                                                 cosf(t * 0.12f) * 0.3f,
+                                                                 sinf(t * 0.07f) * 0.3f);
                 break;
             case FractalTypeSierpinskiTetra:
                 _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.25f;
+                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.16f) * 0.2f,
+                                                                 cosf(t * 0.10f) * 0.2f,
+                                                                 sinf(t * 0.13f) * 0.2f);
                 break;
             case FractalTypeQuaternionJulia:
-                _juliaC = _baseJuliaC + simd_make_float4(sinf(t * 0.30f) * 0.15f,
-                                                           cosf(t * 0.23f) * 0.15f,
-                                                           sinf(t * 0.17f) * 0.15f,
-                                                           cosf(t * 0.11f) * 0.15f);
+                // Two independent rotating pairs: (x,y) at one rate,
+                // (z,w) at another, composed into a Lissajous-like path
+                // through the quaternion constant's 4D space.
+                _juliaC = _baseJuliaC + simd_make_float4(cosf(t * 0.30f) * 0.15f,
+                                                           sinf(t * 0.30f) * 0.15f,
+                                                           cosf(t * 0.11f) * 0.15f,
+                                                           sinf(t * 0.11f) * 0.15f);
                 break;
             case FractalTypeApollonian:
                 _ifsScale = _baseIfsScale + sinf(t * 0.25f) * 0.15f;
+                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.18f) * 0.1f,
+                                                                 cosf(t * 0.14f) * 0.1f,
+                                                                 0.0f);
                 break;
         }
     }

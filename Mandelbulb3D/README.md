@@ -32,7 +32,7 @@ sufficient.
 | `J`                          | Toggle Julia mode (Mandelbulb only) |
 | `+` / `-`                     | Increase/decrease fractal power   |
 | `[` / `]`                     | Decrease/increase iteration detail |
-| `Space`                        | Toggle power animation            |
+| `Space`                        | Toggle animation (each fractal animates its own two defining parameters) |
 | `S`                              | Toggle soft shadows              |
 | `R`                                | Reset camera + parameters to the current fractal's preset |
 

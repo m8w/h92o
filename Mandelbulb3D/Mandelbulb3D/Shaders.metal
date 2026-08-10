@@ -150,7 +150,7 @@ inline float mengerSpongeDE(float3 pos, constant Uniforms &u, thread float &trap
 
     int foldIterations = clamp(u.maxIterations, 1, 8);
     for (int m = 0; m < foldIterations; m++) {
-        float3 a = glslMod(pos * s, float3(2.0)) - float3(1.0);
+        float3 a = glslMod(pos * s + u.ifsOffset.xyz, float3(2.0)) - float3(1.0);
         s *= u.ifsScale;
 
         float3 r = abs(float3(1.0) - u.ifsScale * abs(a));
@@ -237,7 +237,7 @@ inline float apollonianDE(float3 pos, constant Uniforms &u, thread float &trap) 
     trap = 1e10;
 
     for (int i = 0; i < u.maxIterations; i++) {
-        p = -1.0 + 2.0 * fract(0.5 * p + 0.5);
+        p = -1.0 + 2.0 * fract(0.5 * p + 0.5 + u.ifsOffset.xyz);
         float r2 = dot(p, p);
         float k = max(u.ifsScale / r2, 1.0);
         p *= k;
