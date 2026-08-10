@@ -25,6 +25,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)toggleJuliaMode;
 - (void)resetCamera;
 
+// Secondary per-type control: KIFS's per-iteration rotation angle,
+// or (for Hybrid) cycling to the next/previous built-in slot preset.
+// A no-op for types that don't have a secondary control.
+- (void)adjustSecondaryByDelta:(float)delta;
+
 // Fractal-type switching. Each type ships with its own default
 // parameters and camera framing (see -applyPresetForFractalType: in
 // the .mm); switching resets those defaults.

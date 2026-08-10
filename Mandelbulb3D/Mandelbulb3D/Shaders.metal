@@ -20,6 +20,17 @@
 //     Sets on the GPU" (GPU Gems), sliced at w=0.
 //   - Apollonian gasket: Knighty's sphere-inversion DE, as documented
 //     on Fractal Forums / iquilezles.org.
+//   - Kaleidoscopic IFS (KIFS): the tetrahedral-fold-plus-rotation
+//     engine behind most of Mandelbulber2's abox_*/difs_* formula
+//     family — same fold as the Sierpinski DE below, generalized with
+//     a configurable per-iteration rotation, so scale/offset/rotation
+//     alone reach a huge range of that family's look without a
+//     separate formula per variant.
+//   - Hybrid: Mandelbulber2's actual "hybrid fractal" mechanism —
+//     rather than one formula's full escape-time loop, up to three
+//     formulas each contribute one iteration step to a single shared
+//     point, combined via a chosen operator (chain/add/subtract/cross
+//     product) and blend weight.
 //
 //  The vertex stage just emits a full-screen triangle; the fragment
 //  stage ray-marches whichever fractal is selected, per-pixel.
@@ -54,6 +65,14 @@ vertex VertexOut vertexShader(uint vertexID [[vertex_id]]) {
 // which would silently break the folding formulas below).
 inline float3 glslMod(float3 x, float3 y) {
     return x - y * floor(x / y);
+}
+
+// Rodrigues' rotation formula: rotate v around a (unit) axis by angle.
+inline float3 rotateAroundAxis(float3 v, float3 axis, float angle) {
+    float3 a = normalize(axis);
+    float c = cos(angle);
+    float s = sin(angle);
+    return v * c + cross(a, v) * s + a * dot(a, v) * (1.0 - c);
 }
 
 // ---- Mandelbulb / Juliabulb -------------------------------------------
@@ -248,6 +267,141 @@ inline float apollonianDE(float3 pos, constant Uniforms &u, thread float &trap) 
     return (0.25 * abs(p.y)) / scale;
 }
 
+// ---- Kaleidoscopic IFS (KIFS) ---------------------------------------------
+//
+// The same tetrahedral fold as the Sierpinski DE above, generalized
+// with a configurable rotation applied each iteration before folding.
+// This one engine — via ifsScale/ifsOffset/kifsRotationAngle/
+// kifsRotationAxis — reaches most of the visual range of Mandelbulber2's
+// abox_*/difs_* formula family, which differ from each other mainly in
+// exactly these parameters.
+
+inline float kifsDE(float3 pos, constant Uniforms &u, thread float &trap) {
+    float3 z = pos;
+    float scale = u.ifsScale;
+    float r = 1.0;
+    trap = 1e10;
+
+    for (int i = 0; i < u.maxIterations; i++) {
+        z = rotateAroundAxis(z, u.kifsRotationAxis.xyz, u.kifsRotationAngle);
+        z = abs(z);
+
+        if (z.x - z.y < 0.0) z.xy = z.yx;
+        if (z.x - z.z < 0.0) z.xz = z.zx;
+        if (z.y - z.z < 0.0) z.yz = z.zy;
+
+        z = z * scale - u.ifsOffset.xyz * (scale - 1.0);
+        r *= scale;
+        trap = min(trap, length(z));
+    }
+
+    return length(z) / r;
+}
+
+// ---- Hybrid --------------------------------------------------------------
+//
+// Mandelbulber2's actual "hybrid fractal" mechanism: rather than one
+// formula running its own escape-time loop, up to three formulas each
+// contribute a single iteration step to one shared point z, combined
+// into the running state via a per-slot operator and blend weight.
+// Chain (the default) is plain function composition — each slot
+// transforms whatever the previous one produced, which is how hybrids
+// normally work. Add/Subtract/Cross instead combine the current point
+// with this step's raw output as a vector operation, then blend that
+// combination in by the slot's weight — CSG-style mixing rather than
+// pure composition.
+
+inline float3 hybridStepMandelbulb(float3 z, float3 c, float power, thread float &dr) {
+    float r = length(z);
+    if (r < 1e-6) {
+        return z;
+    }
+    float theta = acos(clamp(z.z / r, -1.0, 1.0));
+    float phi = atan2(z.y, z.x);
+    dr = pow(r, power - 1.0) * power * dr + 1.0;
+    float zr = pow(r, power);
+    theta *= power;
+    phi *= power;
+    float3 next = zr * float3(sin(theta) * cos(phi), sin(phi) * sin(theta), cos(theta));
+    return next + c;
+}
+
+inline float3 hybridStepMandelbox(float3 z, float3 c, constant Uniforms &u, thread float &dr) {
+    z = clamp(z, -1.0, 1.0) * 2.0 - z;
+    float r2 = dot(z, z);
+    if (r2 < u.mbMinRadius2) {
+        float t = u.mbFixedRadius2 / u.mbMinRadius2;
+        z *= t;
+        dr *= t;
+    } else if (r2 < u.mbFixedRadius2) {
+        float t = u.mbFixedRadius2 / r2;
+        z *= t;
+        dr *= t;
+    }
+    z = z * u.mbScale + c;
+    dr = dr * abs(u.mbScale) + 1.0;
+    return z;
+}
+
+inline float3 hybridStepKIFS(float3 z, constant Uniforms &u, thread float &dr) {
+    z = rotateAroundAxis(z, u.kifsRotationAxis.xyz, u.kifsRotationAngle);
+    z = abs(z);
+    if (z.x - z.y < 0.0) z.xy = z.yx;
+    if (z.x - z.z < 0.0) z.xz = z.zx;
+    if (z.y - z.z < 0.0) z.yz = z.zy;
+    z = z * u.ifsScale - u.ifsOffset.xyz * (u.ifsScale - 1.0);
+    dr *= abs(u.ifsScale);
+    return z;
+}
+
+inline float3 applyHybridSlot(float3 z, float3 pos, int formula, int op, float weight,
+                               constant Uniforms &u, thread float &dr) {
+    if (formula == HybridFormulaOff || weight <= 0.0) {
+        return z;
+    }
+
+    float3 stepResult = z;
+    switch (formula) {
+        case HybridFormulaMandelbulb: stepResult = hybridStepMandelbulb(z, pos, u.power, dr); break;
+        case HybridFormulaMandelbox:  stepResult = hybridStepMandelbox(z, pos, u, dr); break;
+        case HybridFormulaKIFS:       stepResult = hybridStepKIFS(z, u, dr); break;
+        default: break;
+    }
+
+    float3 combined = stepResult;
+    switch (op) {
+        case HybridOpChain:    combined = stepResult; break;
+        case HybridOpAdd:      combined = z + stepResult; break;
+        case HybridOpSubtract: combined = z - stepResult; break;
+        case HybridOpCross:    combined = cross(z, stepResult); break;
+        default: break;
+    }
+
+    return mix(z, combined, weight);
+}
+
+inline float hybridDE(float3 pos, constant Uniforms &u, thread float &trap) {
+    float3 z = pos;
+    float dr = 1.0;
+    trap = 1e10;
+
+    for (int i = 0; i < u.maxIterations; i++) {
+        float r = length(z);
+        if (r * r > u.bailout) {
+            break;
+        }
+
+        z = applyHybridSlot(z, pos, u.hybridFormulas.x, u.hybridOps.x, u.hybridWeights.x, u, dr);
+        z = applyHybridSlot(z, pos, u.hybridFormulas.y, u.hybridOps.y, u.hybridWeights.y, u, dr);
+        z = applyHybridSlot(z, pos, u.hybridFormulas.z, u.hybridOps.z, u.hybridWeights.z, u, dr);
+
+        trap = min(trap, length(z));
+    }
+
+    float r = length(z);
+    return 0.5 * log(max(r, 1e-6)) * r / max(dr, 1e-6);
+}
+
 // ---- Dispatch --------------------------------------------------------------
 
 inline float sceneDE(float3 pos, constant Uniforms &u, thread float &trap) {
@@ -257,6 +411,8 @@ inline float sceneDE(float3 pos, constant Uniforms &u, thread float &trap) {
         case FractalTypeSierpinskiTetra: return sierpinskiDE(pos, u, trap);
         case FractalTypeQuaternionJulia: return quaternionJuliaDE(pos, u, trap);
         case FractalTypeApollonian:      return apollonianDE(pos, u, trap);
+        case FractalTypeKIFS:            return kifsDE(pos, u, trap);
+        case FractalTypeHybrid:          return hybridDE(pos, u, trap);
         case FractalTypeMandelbulb:
         default:                          return mandelbulbDE(pos, u, trap);
     }

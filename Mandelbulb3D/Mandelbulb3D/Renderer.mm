@@ -12,9 +12,11 @@
 #include <algorithm>
 
 static const NSUInteger kMaxFramesInFlight = 3;
+static const int kHybridPresetCount = 4;
 
 @interface Renderer ()
 - (void)applyPresetForFractalType:(int)type;
+- (void)applyHybridPresetAtIndex:(int)index;
 @end
 
 @implementation Renderer {
@@ -50,12 +52,24 @@ static const NSUInteger kMaxFramesInFlight = 3;
     float _mbMinRadius2;
     float _mbFixedRadius2;
 
-    // Menger / Sierpinski.
+    // Menger / Sierpinski / Apollonian / KIFS.
     float _ifsScale;
     simd_float3 _ifsOffset;
 
+    // KIFS: extra per-iteration rotation, on top of the fold.
+    float _kifsRotationAngle;
+    simd_float3 _kifsRotationAxis;
+
     // Juliabulb / Quaternion Julia constant.
     simd_float4 _juliaC;
+
+    // Hybrid: up to 3 slots, each an optional formula + combine
+    // operator + blend weight, cycled via a small set of built-in
+    // presets (see -applyHybridPresetAtIndex:).
+    int _hybridFormula[3];
+    int _hybridOp[3];
+    float _hybridWeight[3];
+    int _hybridPresetIndex;
 
     // Preset values captured on type switch: animation oscillates
     // around these rather than drifting off whatever the last frame
@@ -66,7 +80,9 @@ static const NSUInteger kMaxFramesInFlight = 3;
     float _baseMbFixedRadius2;
     float _baseIfsScale;
     simd_float3 _baseIfsOffset;
+    float _baseKifsRotationAngle;
     simd_float4 _baseJuliaC;
+    float _baseHybridWeight[3];
 
     vector_uint2 _viewportSize;
 }
@@ -133,6 +149,8 @@ static const NSUInteger kMaxFramesInFlight = 3;
     _mbFixedRadius2 = 1.0f;
     _ifsScale = 2.0f;
     _ifsOffset = simd_make_float3(1.0f, 1.0f, 1.0f);
+    _kifsRotationAngle = 0.0f;
+    _kifsRotationAxis = simd_make_float3(0.0f, 1.0f, 0.0f);
     _juliaC = simd_make_float4(-0.2f, 0.8f, 0.0f, 0.0f);
 
     switch (type) {
@@ -194,6 +212,31 @@ static const NSUInteger kMaxFramesInFlight = 3;
             _colorB = simd_make_float3(0.55f, 0.05f, 0.10f);
             _camera.distance = 2.4f;
             break;
+
+        case FractalTypeKIFS:
+            _maxIterations = 14;
+            _ifsScale = 2.0f;
+            _ifsOffset = simd_make_float3(1.0f, 1.0f, 1.0f);
+            _kifsRotationAngle = 0.35f;
+            _kifsRotationAxis = simd_make_float3(0.3f, 1.0f, 0.1f);
+            _epsilon = 0.0008f;
+            _maxDistance = 8.0f;
+            _colorA = simd_make_float3(0.65f, 0.15f, 0.90f);
+            _colorB = simd_make_float3(0.15f, 0.85f, 0.80f);
+            _camera.distance = 3.2f;
+            break;
+
+        case FractalTypeHybrid:
+            _maxIterations = 8;
+            _bailout = 6.0f;
+            _epsilon = 0.001f;
+            _maxDistance = 8.0f;
+            _colorA = simd_make_float3(0.90f, 0.20f, 0.35f);
+            _colorB = simd_make_float3(0.20f, 0.55f, 0.95f);
+            _camera.distance = 3.4f;
+            _hybridPresetIndex = 0;
+            [self applyHybridPresetAtIndex:0];
+            break;
     }
 
     _baseBailout = _bailout;
@@ -201,10 +244,49 @@ static const NSUInteger kMaxFramesInFlight = 3;
     _baseMbFixedRadius2 = _mbFixedRadius2;
     _baseIfsScale = _ifsScale;
     _baseIfsOffset = _ifsOffset;
+    _baseKifsRotationAngle = _kifsRotationAngle;
     _baseJuliaC = _juliaC;
 
     _camera.azimuth = 0.9f;
     _camera.elevation = 0.45f;
+}
+
+// Hand-picked hybrid slot combinations, cycled with `,`/`.` while the
+// Hybrid fractal is active. Each demonstrates a different combine
+// operator so all four are worth seeing, not just tuning variations of
+// one.
+- (void)applyHybridPresetAtIndex:(int)index {
+    _hybridPresetIndex = ((index % kHybridPresetCount) + kHybridPresetCount) % kHybridPresetCount;
+
+    switch (_hybridPresetIndex) {
+        case 0: // Bulb, twisted by a KIFS fold blended in.
+            _hybridFormula[0] = HybridFormulaMandelbulb; _hybridOp[0] = HybridOpChain; _hybridWeight[0] = 1.0f;
+            _hybridFormula[1] = HybridFormulaKIFS;       _hybridOp[1] = HybridOpAdd;   _hybridWeight[1] = 0.35f;
+            _hybridFormula[2] = HybridFormulaOff;        _hybridOp[2] = HybridOpChain; _hybridWeight[2] = 0.0f;
+            break;
+
+        case 1: // Box, then bulb: classic sequential hybrid chaining.
+            _hybridFormula[0] = HybridFormulaMandelbox;  _hybridOp[0] = HybridOpChain; _hybridWeight[0] = 1.0f;
+            _hybridFormula[1] = HybridFormulaMandelbulb; _hybridOp[1] = HybridOpChain; _hybridWeight[1] = 0.6f;
+            _hybridFormula[2] = HybridFormulaOff;        _hybridOp[2] = HybridOpChain; _hybridWeight[2] = 0.0f;
+            break;
+
+        case 2: // All three chained in sequence.
+            _hybridFormula[0] = HybridFormulaMandelbulb; _hybridOp[0] = HybridOpChain; _hybridWeight[0] = 1.0f;
+            _hybridFormula[1] = HybridFormulaMandelbox;  _hybridOp[1] = HybridOpChain; _hybridWeight[1] = 1.0f;
+            _hybridFormula[2] = HybridFormulaKIFS;       _hybridOp[2] = HybridOpChain; _hybridWeight[2] = 1.0f;
+            break;
+
+        case 3: // Cross-product and subtract mixing instead of pure chaining.
+            _hybridFormula[0] = HybridFormulaMandelbulb; _hybridOp[0] = HybridOpChain;    _hybridWeight[0] = 1.0f;
+            _hybridFormula[1] = HybridFormulaKIFS;       _hybridOp[1] = HybridOpCross;    _hybridWeight[1] = 0.5f;
+            _hybridFormula[2] = HybridFormulaMandelbox;  _hybridOp[2] = HybridOpSubtract; _hybridWeight[2] = 0.25f;
+            break;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        _baseHybridWeight[i] = _hybridWeight[i];
+    }
 }
 
 - (NSString *)currentFractalName {
@@ -215,6 +297,8 @@ static const NSUInteger kMaxFramesInFlight = 3;
         case FractalTypeSierpinskiTetra: return @"Sierpinski Tetrahedron";
         case FractalTypeQuaternionJulia: return @"Quaternion Julia";
         case FractalTypeApollonian:      return @"Apollonian Gasket";
+        case FractalTypeKIFS:            return @"Kaleidoscopic IFS";
+        case FractalTypeHybrid:          return [NSString stringWithFormat:@"Hybrid (preset %d)", _hybridPresetIndex + 1];
         default:                          return @"Unknown";
     }
 }
@@ -266,6 +350,15 @@ static const NSUInteger kMaxFramesInFlight = 3;
 
 - (void)resetCamera {
     [self applyPresetForFractalType:_fractalType];
+}
+
+- (void)adjustSecondaryByDelta:(float)delta {
+    if (_fractalType == FractalTypeKIFS) {
+        _kifsRotationAngle += delta * 0.2f;
+        _baseKifsRotationAngle = _kifsRotationAngle;
+    } else if (_fractalType == FractalTypeHybrid) {
+        [self applyHybridPresetAtIndex:_hybridPresetIndex + (delta > 0.0f ? 1 : -1)];
+    }
 }
 
 #pragma mark - MTKViewDelegate
@@ -322,6 +415,16 @@ static const NSUInteger kMaxFramesInFlight = 3;
                                                                  cosf(t * 0.14f) * 0.1f,
                                                                  0.0f);
                 break;
+            case FractalTypeKIFS:
+                // Continuous spin (not a pulse) reads as a turning
+                // kaleidoscope; scale still breathes as the second param.
+                _kifsRotationAngle = _baseKifsRotationAngle + t * 0.15f;
+                _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.3f;
+                break;
+            case FractalTypeHybrid:
+                _hybridWeight[0] = std::clamp(_baseHybridWeight[0] + sinf(t * 0.2f) * 0.3f, 0.0f, 1.0f);
+                _hybridWeight[1] = std::clamp(_baseHybridWeight[1] + cosf(t * 0.15f) * 0.3f, 0.0f, 1.0f);
+                break;
         }
     }
 
@@ -370,11 +473,16 @@ static const NSUInteger kMaxFramesInFlight = 3;
 
     uniforms.ifsScale = _ifsScale;
     uniforms.bailout = _bailout;
+    uniforms.kifsRotationAngle = _kifsRotationAngle;
     uniforms._pad0 = 0.0f;
-    uniforms._pad1 = 0.0f;
 
     uniforms.ifsOffset = simd_make_float4(_ifsOffset, 0.0f);
     uniforms.juliaC = _juliaC;
+    uniforms.kifsRotationAxis = simd_make_float4(_kifsRotationAxis, 0.0f);
+
+    uniforms.hybridFormulas = simd_make_int4(_hybridFormula[0], _hybridFormula[1], _hybridFormula[2], 0);
+    uniforms.hybridOps = simd_make_int4(_hybridOp[0], _hybridOp[1], _hybridOp[2], 0);
+    uniforms.hybridWeights = simd_make_float4(_hybridWeight[0], _hybridWeight[1], _hybridWeight[2], 0.0f);
 
     uniforms.lightDirection = simd_make_float4(_lightDirection, 0.0f);
     uniforms.baseColorA = simd_make_float4(_colorA, 0.0f);

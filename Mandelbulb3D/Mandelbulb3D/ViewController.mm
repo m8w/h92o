@@ -92,11 +92,21 @@
         case 'R':
             [self.renderer resetCamera];
             break;
+        case ',':
+        case '<':
+            [self.renderer adjustSecondaryByDelta:-1.0f];
+            [self updateWindowTitle];
+            break;
+        case '.':
+        case '>':
+            [self.renderer adjustSecondaryByDelta:1.0f];
+            [self updateWindowTitle];
+            break;
         case '\t':
             [self.renderer cycleFractalType:!(event.modifierFlags & NSEventModifierFlagShift)];
             [self updateWindowTitle];
             break;
-        case '1': case '2': case '3': case '4': case '5': case '6':
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8':
             [self.renderer selectFractalTypeAtIndex:(key - '1')];
             [self updateWindowTitle];
             break;
@@ -134,8 +144,8 @@
     [container addSubview:_metalView];
 
     NSTextField *hud = [NSTextField labelWithString:
-        @"Drag: orbit  Scroll/Pinch: zoom  1-6: fractal  Tab/⇧Tab: cycle  J: julia mode\n"
-        @"+/-: power  [ ]: detail  Space: animate  S: shadows  R: reset"];
+        @"Drag: orbit  Scroll/Pinch: zoom  1-8: fractal  Tab/⇧Tab: cycle  J: julia mode\n"
+        @"+/-: power  [ ]: detail  ,/.: KIFS spin / hybrid preset  Space: animate  S: shadows  R: reset"];
     hud.textColor = [NSColor colorWithWhite:1.0 alpha:0.75];
     hud.backgroundColor = [NSColor colorWithWhite:0.0 alpha:0.35];
     hud.drawsBackground = YES;

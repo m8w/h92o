@@ -27,11 +27,12 @@ sufficient.
 |---------------------------|-------------------------------------|
 | Click + drag               | Orbit the camera                   |
 | Scroll / trackpad pinch    | Zoom in/out                        |
-| `1`–`6`                     | Jump directly to a fractal type    |
+| `1`–`8`                     | Jump directly to a fractal type    |
 | `Tab` / `⇧Tab`              | Cycle to next / previous fractal   |
 | `J`                          | Toggle Julia mode (Mandelbulb only) |
 | `+` / `-`                     | Increase/decrease fractal power   |
 | `[` / `]`                     | Decrease/increase iteration detail |
+| `,` / `.`                       | KIFS: adjust rotation angle. Hybrid: previous/next slot preset |
 | `Space`                        | Toggle animation (each fractal animates its own two defining parameters) |
 | `S`                              | Toggle soft shadows              |
 | `R`                                | Reset camera + parameters to the current fractal's preset |
@@ -40,11 +41,26 @@ The window title always shows which fractal is active.
 
 ## The fractal library
 
-Switching fractal type (`1`–`6` or `Tab`) re-applies that formula's own
+Switching fractal type (`1`–`8` or `Tab`) re-applies that formula's own
 default parameters, iteration count, epsilon, and camera framing — they
 don't share settings, since a Mandelbox and a Menger Sponge want very
-different ray-march tuning. All six live in `Shaders.metal`; each is a
-standard, widely-published formula:
+different ray-march tuning. All eight live in `Shaders.metal`.
+
+The first six are standard, widely-published single formulas. The last
+two — Kaleidoscopic IFS and Hybrid — are a small *engine* rather than
+one fixed shape, built after looking at how
+[Mandelbulber2](https://github.com/buddhi1980/mandelbulber2) (GPLv3)
+structures its much larger formula library: it has 246 named fractal
+formulas, the majority of which are the same handful of fold/rotate/
+scale operations wired together differently, plus a genuine "hybrid"
+system that chains multiple formulas per iteration. Rather than port
+246 individually-unverifiable formulas from someone else's GPL codebase
+wholesale, this project reads their source for the underlying math and
+reimplements two general-purpose pieces of that same idea from scratch:
+a single configurable KIFS fold (whose scale/offset/rotation reach most
+of the visual range of their `abox_*`/`difs_*` family), and a real
+hybrid-formula compositor (matching their actual per-iteration-step
+chaining mechanism, extended with CSG-style combine operators).
 
 1. **Mandelbulb** (`mandelbulbDE`) — Daniel White & Paul Nylander's 2009
    spherical ("triplex") power-`n` formula, the one that gave the whole
@@ -83,6 +99,21 @@ standard, widely-published formula:
    fractal (Fractal Forums / iquilezles.org): repeatedly fold into the
    unit cell and invert through a sphere, accumulating total scale to
    correct the distance estimate back to world space.
+7. **Kaleidoscopic IFS** (`kifsDE`) — the same tetrahedral fold as
+   Sierpinski above, generalized with a configurable rotation applied
+   each iteration before folding (`,`/`.` adjusts the angle live). This
+   one engine, via scale/offset/rotation, reaches most of the visual
+   range of Mandelbulber2's dozens of `abox_*`/`difs_*` formulas, which
+   differ from each other mainly in exactly these parameters.
+8. **Hybrid** (`hybridDE`) — Mandelbulber2's actual hybrid-fractal
+   mechanism: up to three formulas (Mandelbulb / Mandelbox / KIFS) each
+   contribute one iteration step to a single shared point, combined via
+   a per-slot operator — **Chain** (plain composition: each formula
+   transforms whatever the last one produced, the standard hybrid
+   behavior), **Add**/**Subtract** (vector-combine the current point
+   with the step's raw output), or **Cross** (cross-product the two) —
+   and a blend weight. `,`/`.` cycles four built-in slot presets, one
+   per operator, so all four are easy to actually see.
 
 ## How it works
 

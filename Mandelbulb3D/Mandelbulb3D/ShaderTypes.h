@@ -11,9 +11,9 @@
 //  bytes) but Metal Shading Language only guarantees 16-byte
 //  *alignment* for float3, not 16-byte *size* — a following scalar can
 //  legally pack right after byte 12. That mismatch silently corrupts
-//  a shared struct's layout. float4 is 16 bytes with 16-byte alignment
-//  identically on both sides, so it's the safe choice here; unused w
-//  components are ignored (or repurposed, see FractalType).
+//  a shared struct's layout. float4/int4 are 16 bytes with 16-byte
+//  alignment identically on both sides, so they're the safe choice
+//  here; unused w components are ignored (or repurposed, see below).
 //
 
 #ifndef ShaderTypes_h
@@ -31,7 +31,31 @@ enum FractalType {
     FractalTypeSierpinskiTetra   = 3, // tetrahedral IFS folding
     FractalTypeQuaternionJulia   = 4, // Crane's quaternion Julia set, sliced at w=0
     FractalTypeApollonian        = 5, // Knighty's sphere-inversion gasket
-    FractalTypeCount             = 6,
+    FractalTypeKIFS              = 6, // generic Kaleidoscopic IFS: fold + per-iteration rotation
+    FractalTypeHybrid            = 7, // up to 3 formulas chained per iteration, Mandelbulber2-style
+    FractalTypeCount             = 8,
+};
+
+// One hybrid slot's formula, applied as a single iteration step (not a
+// full independent DE loop) so multiple formulas can share one running
+// point. Keep in sync with Shaders.metal's hybridDE().
+enum HybridSlotFormula {
+    HybridFormulaOff        = 0,
+    HybridFormulaMandelbulb = 1,
+    HybridFormulaMandelbox  = 2,
+    HybridFormulaKIFS       = 3,
+};
+
+// How a hybrid slot's step result merges into the running point. Chain
+// is the classic Mandelbulber2 hybrid behavior (each formula transforms
+// whatever the previous one produced); Add/Subtract/Cross are CSG-style
+// combinations of the current point and this step's output, blended in
+// by the slot's weight.
+enum HybridCombineOp {
+    HybridOpChain    = 0, // z <- step(z)
+    HybridOpAdd      = 1, // z <- z + step(z)
+    HybridOpSubtract = 2, // z <- z - step(z)
+    HybridOpCross    = 3, // z <- cross(z, step(z))
 };
 
 struct Uniforms {
@@ -59,13 +83,18 @@ struct Uniforms {
     float mbMinRadius2;      // Mandelbox ball-fold inner radius^2
     float mbFixedRadius2;    // Mandelbox ball-fold outer radius^2
 
-    float ifsScale;          // Menger/Sierpinski scale, or Apollonian fixed-radius^2
-    float bailout;            // escape radius^2 (Mandelbulb/Juliabulb/Quaternion Julia)
+    float ifsScale;          // Menger/Sierpinski/Apollonian/KIFS scale, or Apollonian fixed-radius^2
+    float bailout;            // escape radius^2 (Mandelbulb/Juliabulb/Quaternion Julia/Hybrid)
+    float kifsRotationAngle;  // KIFS: extra rotation applied each iteration, before folding
     float _pad0;
-    float _pad1;
 
-    simd_float4 ifsOffset;    // Menger/Sierpinski fold offset (xyz used)
-    simd_float4 juliaC;       // Juliabulb constant (xyz) or Quaternion Julia constant (xyzw)
+    simd_float4 ifsOffset;       // Menger/Sierpinski/Apollonian/KIFS fold offset (xyz used)
+    simd_float4 juliaC;          // Juliabulb constant (xyz) or Quaternion Julia constant (xyzw)
+    simd_float4 kifsRotationAxis; // KIFS: axis for the per-iteration rotation (xyz used)
+
+    simd_int4   hybridFormulas;  // HybridSlotFormula per slot: x=A, y=B, z=C, w unused
+    simd_int4   hybridOps;       // HybridCombineOp per slot: x=A, y=B, z=C, w unused
+    simd_float4 hybridWeights;   // blend weight [0,1] per slot: x=A, y=B, z=C, w unused
 
     simd_float4 lightDirection;
     simd_float4 baseColorA;   // orbit-trap color gradient, low end
