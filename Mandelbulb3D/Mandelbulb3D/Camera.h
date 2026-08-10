@@ -34,12 +34,6 @@ public:
         distance = std::clamp(distance + delta, kMinDistance, kMaxDistance);
     }
 
-    void reset() {
-        azimuth = 0.9f;
-        elevation = 0.45f;
-        distance = 3.2f;
-    }
-
     simd_float3 position() const {
         const float ce = std::cos(elevation);
         simd_float3 p;

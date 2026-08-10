@@ -3,8 +3,9 @@
 //  Mandelbulb3D
 //
 //  Hosts the MTKView, wires it to a Renderer, and translates mouse /
-//  scroll / keyboard input into camera-orbit and fractal-parameter
-//  changes. A small on-screen HUD label documents the controls.
+//  scroll / keyboard input into camera-orbit, fractal-switching, and
+//  fractal-parameter changes. A small on-screen HUD label documents
+//  the controls; the window title tracks the active fractal.
 //
 
 #import "ViewController.h"
@@ -49,6 +50,10 @@
     [self.renderer dollyByDelta:(float)(-event.magnification) * 2.0f];
 }
 
+- (void)updateWindowTitle {
+    self.window.title = [NSString stringWithFormat:@"Mandelbulb 3D — %@", self.renderer.currentFractalName];
+}
+
 - (void)keyDown:(NSEvent *)event {
     NSString *characters = event.charactersIgnoringModifiers;
     if (characters.length == 0) {
@@ -79,9 +84,21 @@
         case 'S':
             [self.renderer toggleShadows];
             break;
+        case 'j':
+        case 'J':
+            [self.renderer toggleJuliaMode];
+            break;
         case 'r':
         case 'R':
             [self.renderer resetCamera];
+            break;
+        case '\t':
+            [self.renderer cycleFractalType:!(event.modifierFlags & NSEventModifierFlagShift)];
+            [self updateWindowTitle];
+            break;
+        case '1': case '2': case '3': case '4': case '5': case '6':
+            [self.renderer selectFractalTypeAtIndex:(key - '1')];
+            [self updateWindowTitle];
             break;
         default:
             [super keyDown:event];
@@ -117,7 +134,8 @@
     [container addSubview:_metalView];
 
     NSTextField *hud = [NSTextField labelWithString:
-        @"Drag: orbit   Scroll/Pinch: zoom   +/-: power   [ ]: detail   Space: animate   S: shadows   R: reset"];
+        @"Drag: orbit  Scroll/Pinch: zoom  1-6: fractal  Tab/⇧Tab: cycle  J: julia mode\n"
+        @"+/-: power  [ ]: detail  Space: animate  S: shadows  R: reset"];
     hud.textColor = [NSColor colorWithWhite:1.0 alpha:0.75];
     hud.backgroundColor = [NSColor colorWithWhite:0.0 alpha:0.35];
     hud.drawsBackground = YES;
@@ -125,6 +143,7 @@
     hud.bezeled = NO;
     hud.editable = NO;
     hud.selectable = NO;
+    hud.maximumNumberOfLines = 2;
     hud.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:hud];
 
@@ -139,6 +158,7 @@
 - (void)viewDidAppear {
     [super viewDidAppear];
     [self.view.window makeFirstResponder:_metalView];
+    [_metalView updateWindowTitle];
 }
 
 @end

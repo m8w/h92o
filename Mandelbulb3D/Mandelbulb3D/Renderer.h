@@ -22,7 +22,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)adjustIterationsByDelta:(int)delta;
 - (void)toggleAnimation;
 - (void)toggleShadows;
+- (void)toggleJuliaMode;
 - (void)resetCamera;
+
+// Fractal-type switching. Each type ships with its own default
+// parameters and camera framing (see -applyPresetForFractalType: in
+// the .mm); switching resets those defaults.
+- (void)selectFractalTypeAtIndex:(int)index;
+- (void)cycleFractalType:(BOOL)forward;
+- (nonnull NSString *)currentFractalName;
 
 @end
 
