@@ -33,7 +33,7 @@ static const NSUInteger kMaxFramesInFlight = 3;
     float _maxDistance;
     float _aoStrength;
     BOOL _shadowsEnabled;
-    BOOL _animatePower;
+    BOOL _animating;
     int _maxIterations;
     int _fractalType;
     simd_float3 _lightDirection;
@@ -57,6 +57,13 @@ static const NSUInteger kMaxFramesInFlight = 3;
     // Juliabulb / Quaternion Julia constant.
     simd_float4 _juliaC;
 
+    // Preset values captured on type switch: animation oscillates
+    // around these rather than drifting off whatever the last frame
+    // left behind.
+    float _baseMbScale;
+    float _baseIfsScale;
+    simd_float4 _baseJuliaC;
+
     vector_uint2 _viewportSize;
 }
 
@@ -75,7 +82,7 @@ static const NSUInteger kMaxFramesInFlight = 3;
     _maxSteps = 256;
     _aoStrength = 0.9f;
     _shadowsEnabled = YES;
-    _animatePower = NO;
+    _animating = NO;
     _lightDirection = simd_normalize(simd_make_float3(-0.5f, -1.0f, -0.4f));
 
     [self applyPresetForFractalType:FractalTypeMandelbulb];
@@ -185,6 +192,10 @@ static const NSUInteger kMaxFramesInFlight = 3;
             break;
     }
 
+    _baseMbScale = _mbScale;
+    _baseIfsScale = _ifsScale;
+    _baseJuliaC = _juliaC;
+
     _camera.azimuth = 0.9f;
     _camera.elevation = 0.45f;
 }
@@ -233,7 +244,7 @@ static const NSUInteger kMaxFramesInFlight = 3;
 }
 
 - (void)toggleAnimation {
-    _animatePower = !_animatePower;
+    _animating = !_animating;
 }
 
 - (void)toggleShadows {
@@ -263,8 +274,31 @@ static const NSUInteger kMaxFramesInFlight = 3;
     CFTimeInterval now = CFAbsoluteTimeGetCurrent();
     CFTimeInterval elapsed = now - _startTime;
 
-    if (_animatePower && _fractalType == FractalTypeMandelbulb) {
-        _power = 8.0f + sinf((float)elapsed * 0.25f) * 2.5f;
+    if (_animating) {
+        float t = (float)elapsed;
+        switch (_fractalType) {
+            case FractalTypeMandelbulb:
+                _power = 8.0f + sinf(t * 0.25f) * 2.5f;
+                break;
+            case FractalTypeMandelbox:
+                _mbScale = _baseMbScale + sinf(t * 0.2f) * 0.5f;
+                break;
+            case FractalTypeMengerSponge:
+                _ifsScale = _baseIfsScale + sinf(t * 0.15f) * 0.35f;
+                break;
+            case FractalTypeSierpinskiTetra:
+                _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.25f;
+                break;
+            case FractalTypeQuaternionJulia:
+                _juliaC = _baseJuliaC + simd_make_float4(sinf(t * 0.30f) * 0.15f,
+                                                           cosf(t * 0.23f) * 0.15f,
+                                                           sinf(t * 0.17f) * 0.15f,
+                                                           cosf(t * 0.11f) * 0.15f);
+                break;
+            case FractalTypeApollonian:
+                _ifsScale = _baseIfsScale + sinf(t * 0.25f) * 0.15f;
+                break;
+        }
     }
 
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
