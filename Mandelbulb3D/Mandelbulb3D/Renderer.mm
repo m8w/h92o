@@ -7,6 +7,7 @@
 #import "ShaderTypes.h"
 #import "Camera.h"
 
+#include <CoreFoundation/CoreFoundation.h>
 #include <simd/simd.h>
 #include <algorithm>
 
@@ -46,7 +47,7 @@ static const NSUInteger kMaxFramesInFlight = 3;
     _commandQueue = [_device newCommandQueue];
     _frameSemaphore = dispatch_semaphore_create(kMaxFramesInFlight);
 
-    _startTime = CACurrentMediaTime();
+    _startTime = CFAbsoluteTimeGetCurrent();
 
     _power = 8.0f;
     _maxIterations = 10;
@@ -125,7 +126,7 @@ static const NSUInteger kMaxFramesInFlight = 3;
 - (void)drawInMTKView:(MTKView *)view {
     dispatch_semaphore_wait(_frameSemaphore, DISPATCH_TIME_FOREVER);
 
-    CFTimeInterval now = CACurrentMediaTime();
+    CFTimeInterval now = CFAbsoluteTimeGetCurrent();
     CFTimeInterval elapsed = now - _startTime;
 
     if (_animatePower) {
