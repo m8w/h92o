@@ -1,0 +1,299 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4BE623C0ADE248D2AE4CD8E7 /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 313AAFA295F349CC9A58FCD3 /* AppDelegate.mm */; };
+		6BDD7589424C4F1F843F7AEA /* ViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1AD02B8BF90A4343A3073A85 /* ViewController.mm */; };
+		C265371DBBEB4366B29749F9 /* Renderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00053A71793E4C8A97BB08ED /* Renderer.mm */; };
+		2C37DF04A2064404ADA29804 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = B30179F16ED44A6291F7F9F1 /* Shaders.metal */; };
+		D7D0BF4562C34E8898B178BE /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = DB32F692D4D845598BE23F26 /* main.mm */; };
+		E34D0390B4104C5E88A28B1D /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9127B6D7AA042BCAC809402 /* Cocoa.framework */; };
+		DEF56924981045C38F037668 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 873D69D8809C4F89B0AE802F /* Metal.framework */; };
+		9843667B53CD4F9C859E4422 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F2BFCA3CADC4809A2D8B5EA /* MetalKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		822921BC9739493793F640F7 /* Mandelbulb3D.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mandelbulb3D.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		083632DBA97749B39D955604 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		313AAFA295F349CC9A58FCD3 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
+		437EC3BE01B0417999F179F0 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		1AD02B8BF90A4343A3073A85 /* ViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ViewController.mm; sourceTree = "<group>"; };
+		8DC6BE88CAB54D1BBC54AB63 /* Renderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Renderer.h; sourceTree = "<group>"; };
+		00053A71793E4C8A97BB08ED /* Renderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Renderer.mm; sourceTree = "<group>"; };
+		589F7A7D4ACD4A14B1E11FFA /* Camera.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Camera.h; sourceTree = "<group>"; };
+		7D188A41A47F496981AF9A2D /* ShaderTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShaderTypes.h; sourceTree = "<group>"; };
+		B30179F16ED44A6291F7F9F1 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		DB32F692D4D845598BE23F26 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		A5A62D3BD5934BB8918DAA04 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D9127B6D7AA042BCAC809402 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		873D69D8809C4F89B0AE802F /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		6F2BFCA3CADC4809A2D8B5EA /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EA689BCDD44D4022A186CA56 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E34D0390B4104C5E88A28B1D /* Cocoa.framework in Frameworks */,
+				DEF56924981045C38F037668 /* Metal.framework in Frameworks */,
+				9843667B53CD4F9C859E4422 /* MetalKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1526831166E14971A718F116 = {
+			isa = PBXGroup;
+			children = (
+				AD75A804BC04489BB539BC35 /* Mandelbulb3D */,
+				52AB19FAA7C940BD884B2A76 /* Frameworks */,
+				C38891E6315141CC8BD404FE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C38891E6315141CC8BD404FE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				822921BC9739493793F640F7 /* Mandelbulb3D.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		52AB19FAA7C940BD884B2A76 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D9127B6D7AA042BCAC809402 /* Cocoa.framework */,
+				873D69D8809C4F89B0AE802F /* Metal.framework */,
+				6F2BFCA3CADC4809A2D8B5EA /* MetalKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		AD75A804BC04489BB539BC35 /* Mandelbulb3D */ = {
+			isa = PBXGroup;
+			children = (
+				DB32F692D4D845598BE23F26 /* main.mm */,
+				083632DBA97749B39D955604 /* AppDelegate.h */,
+				313AAFA295F349CC9A58FCD3 /* AppDelegate.mm */,
+				437EC3BE01B0417999F179F0 /* ViewController.h */,
+				1AD02B8BF90A4343A3073A85 /* ViewController.mm */,
+				8DC6BE88CAB54D1BBC54AB63 /* Renderer.h */,
+				00053A71793E4C8A97BB08ED /* Renderer.mm */,
+				589F7A7D4ACD4A14B1E11FFA /* Camera.h */,
+				7D188A41A47F496981AF9A2D /* ShaderTypes.h */,
+				B30179F16ED44A6291F7F9F1 /* Shaders.metal */,
+				A5A62D3BD5934BB8918DAA04 /* Info.plist */,
+			);
+			path = Mandelbulb3D;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		86A9B5EE4728472682D85E28 /* Mandelbulb3D */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BDFA05782E4A4910AB1F4ECD /* Build configuration list for PBXNativeTarget "Mandelbulb3D" */;
+			buildPhases = (
+				0FFD5C37EB5C41C0A9447ED7 /* Sources */,
+				EA689BCDD44D4022A186CA56 /* Frameworks */,
+				A144F1B951FA4F54AAB8C801 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Mandelbulb3D;
+			productName = Mandelbulb3D;
+			productReference = 822921BC9739493793F640F7 /* Mandelbulb3D.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		48102758388543E2961DD309 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					86A9B5EE4728472682D85E28 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 139F0DDE92AA4F58B29728CE /* Build configuration list for PBXProject "Mandelbulb3D" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1526831166E14971A718F116;
+			productRefGroup = C38891E6315141CC8BD404FE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				86A9B5EE4728472682D85E28 /* Mandelbulb3D */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A144F1B951FA4F54AAB8C801 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0FFD5C37EB5C41C0A9447ED7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D7D0BF4562C34E8898B178BE /* main.mm in Sources */,
+				4BE623C0ADE248D2AE4CD8E7 /* AppDelegate.mm in Sources */,
+				6BDD7589424C4F1F843F7AEA /* ViewController.mm in Sources */,
+				C265371DBBEB4366B29749F9 /* Renderer.mm in Sources */,
+				2C37DF04A2064404ADA29804 /* Shaders.metal in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		27A2CCD30F2A46E180F42FEB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		7BFD9CDA4AF84E46BE5EB14C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		FAF90DB2405F4C78A1125B37 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Mandelbulb3D/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m8w.Mandelbulb3D";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		E901FD05EBF14F9BB31EBA6D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Mandelbulb3D/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m8w.Mandelbulb3D";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		139F0DDE92AA4F58B29728CE /* Build configuration list for PBXProject "Mandelbulb3D" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				27A2CCD30F2A46E180F42FEB /* Debug */,
+				7BFD9CDA4AF84E46BE5EB14C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BDFA05782E4A4910AB1F4ECD /* Build configuration list for PBXNativeTarget "Mandelbulb3D" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FAF90DB2405F4C78A1125B37 /* Debug */,
+				E901FD05EBF14F9BB31EBA6D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 48102758388543E2961DD309 /* Project object */;
+}
