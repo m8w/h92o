@@ -28,7 +28,7 @@
                                                  backing:NSBackingStoreBuffered
                                                    defer:NO];
     self.window.title = @"Mandelbulb 3D";
-    self.window.minSize = NSMakeSize(480, 320);
+    self.window.minSize = NSMakeSize(760, 420); // room for the render view plus the fixed-width control panel
     self.window.contentViewController = [[ViewController alloc] init];
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];

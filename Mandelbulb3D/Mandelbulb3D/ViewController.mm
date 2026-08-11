@@ -10,7 +10,10 @@
 
 #import "ViewController.h"
 #import "Renderer.h"
+#import "ControlPanel.h"
 #import <Metal/Metal.h>
+
+static const CGFloat kControlPanelWidth = 260.0;
 
 // MetalView: a thin MTKView subclass that forwards raw input events to
 // the Renderer. Kept private to this file since nothing else needs it.
@@ -121,6 +124,7 @@
 @implementation ViewController {
     Renderer *_renderer;
     MetalView *_metalView;
+    ControlPanel *_controlPanel;
 }
 
 - (void)loadView {
@@ -131,7 +135,7 @@
     NSView *container = [[NSView alloc] initWithFrame:frame];
 
     _metalView = [[MetalView alloc] initWithFrame:frame device:device];
-    _metalView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    _metalView.translatesAutoresizingMaskIntoConstraints = NO;
     _metalView.preferredFramesPerSecond = 60;
     _metalView.paused = NO;
     _metalView.enableSetNeedsDisplay = NO;
@@ -142,6 +146,11 @@
     _metalView.renderer = _renderer;
 
     [container addSubview:_metalView];
+
+    _controlPanel = [[ControlPanel alloc] initWithFrame:NSMakeRect(0, 0, kControlPanelWidth, frame.size.height)
+                                                renderer:_renderer];
+    _controlPanel.translatesAutoresizingMaskIntoConstraints = NO;
+    [container addSubview:_controlPanel];
 
     NSTextField *hud = [NSTextField labelWithString:
         @"Drag: orbit  Scroll/Pinch: zoom  1-8: fractal  Tab/⇧Tab: cycle  J: julia mode\n"
@@ -158,8 +167,18 @@
     [container addSubview:hud];
 
     [NSLayoutConstraint activateConstraints:@[
-        [hud.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:12],
-        [hud.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-12],
+        [_metalView.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [_metalView.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        [_metalView.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [_metalView.trailingAnchor constraintEqualToAnchor:_controlPanel.leadingAnchor],
+
+        [_controlPanel.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [_controlPanel.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        [_controlPanel.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [_controlPanel.widthAnchor constraintEqualToConstant:kControlPanelWidth],
+
+        [hud.leadingAnchor constraintEqualToAnchor:_metalView.leadingAnchor constant:12],
+        [hud.bottomAnchor constraintEqualToAnchor:_metalView.bottomAnchor constant:-12],
     ]];
 
     self.view = container;

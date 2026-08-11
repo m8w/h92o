@@ -35,7 +35,8 @@ static const int kHybridPresetCount = 4;
     float _maxDistance;
     float _aoStrength;
     BOOL _shadowsEnabled;
-    BOOL _animating;
+    BOOL _animateParamA;
+    BOOL _animateParamB;
     int _maxIterations;
     int _fractalType;
     simd_float3 _lightDirection;
@@ -75,6 +76,7 @@ static const int kHybridPresetCount = 4;
     // around these rather than drifting off whatever the last frame
     // left behind. Two independent parameters are animated per
     // fractal type, each with its own base + amplitude + frequency.
+    float _basePower;
     float _baseBailout;
     float _baseMbScale;
     float _baseMbFixedRadius2;
@@ -102,7 +104,8 @@ static const int kHybridPresetCount = 4;
     _maxSteps = 256;
     _aoStrength = 0.9f;
     _shadowsEnabled = YES;
-    _animating = NO;
+    _animateParamA = NO;
+    _animateParamB = NO;
     _lightDirection = simd_normalize(simd_make_float3(-0.5f, -1.0f, -0.4f));
 
     [self applyPresetForFractalType:FractalTypeMandelbulb];
@@ -239,6 +242,7 @@ static const int kHybridPresetCount = 4;
             break;
     }
 
+    _basePower = _power;
     _baseBailout = _bailout;
     _baseMbScale = _mbScale;
     _baseMbFixedRadius2 = _mbFixedRadius2;
@@ -328,6 +332,7 @@ static const int kHybridPresetCount = 4;
 
 - (void)adjustPowerByDelta:(float)delta {
     _power = std::clamp(_power + delta, 2.0f, 16.0f);
+    _basePower = _power;
 }
 
 - (void)adjustIterationsByDelta:(int)delta {
@@ -335,7 +340,9 @@ static const int kHybridPresetCount = 4;
 }
 
 - (void)toggleAnimation {
-    _animating = !_animating;
+    BOOL turnOn = !(_animateParamA || _animateParamB);
+    _animateParamA = turnOn;
+    _animateParamB = turnOn;
 }
 
 - (void)toggleShadows {
@@ -374,56 +381,68 @@ static const int kHybridPresetCount = 4;
     CFTimeInterval now = CFAbsoluteTimeGetCurrent();
     CFTimeInterval elapsed = now - _startTime;
 
-    // Each fractal animates two independent parameters at different
-    // frequencies/phases rather than one, so the motion reads as
-    // genuine combined movement instead of a single pulse.
-    if (_animating) {
+    // Each fractal has two independently-animatable parameters at
+    // different frequencies/phases, so combined motion reads as
+    // genuine movement rather than a single pulse. Either can be
+    // switched on/off on its own from the control panel, not just
+    // both together via Space.
+    if (_animateParamA || _animateParamB) {
         float t = (float)elapsed;
         switch (_fractalType) {
             case FractalTypeMandelbulb:
-                _power = 8.0f + sinf(t * 0.25f) * 2.5f;
-                _bailout = _baseBailout + sinf(t * 0.11f) * 1.5f;
+                if (_animateParamA) _power = _basePower + sinf(t * 0.25f) * 2.5f;
+                if (_animateParamB) _bailout = _baseBailout + sinf(t * 0.11f) * 1.5f;
                 break;
             case FractalTypeMandelbox:
-                _mbScale = _baseMbScale + sinf(t * 0.2f) * 0.5f;
-                _mbFixedRadius2 = _baseMbFixedRadius2 + cosf(t * 0.13f) * 0.3f;
+                if (_animateParamA) _mbScale = _baseMbScale + sinf(t * 0.2f) * 0.5f;
+                if (_animateParamB) _mbFixedRadius2 = _baseMbFixedRadius2 + cosf(t * 0.13f) * 0.3f;
                 break;
             case FractalTypeMengerSponge:
-                _ifsScale = _baseIfsScale + sinf(t * 0.15f) * 0.35f;
-                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.09f) * 0.3f,
-                                                                 cosf(t * 0.12f) * 0.3f,
-                                                                 sinf(t * 0.07f) * 0.3f);
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.15f) * 0.35f;
+                if (_animateParamB) {
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.09f) * 0.3f,
+                                                                     cosf(t * 0.12f) * 0.3f,
+                                                                     sinf(t * 0.07f) * 0.3f);
+                }
                 break;
             case FractalTypeSierpinskiTetra:
-                _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.25f;
-                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.16f) * 0.2f,
-                                                                 cosf(t * 0.10f) * 0.2f,
-                                                                 sinf(t * 0.13f) * 0.2f);
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.25f;
+                if (_animateParamB) {
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.16f) * 0.2f,
+                                                                     cosf(t * 0.10f) * 0.2f,
+                                                                     sinf(t * 0.13f) * 0.2f);
+                }
                 break;
             case FractalTypeQuaternionJulia:
                 // Two independent rotating pairs: (x,y) at one rate,
                 // (z,w) at another, composed into a Lissajous-like path
                 // through the quaternion constant's 4D space.
-                _juliaC = _baseJuliaC + simd_make_float4(cosf(t * 0.30f) * 0.15f,
-                                                           sinf(t * 0.30f) * 0.15f,
-                                                           cosf(t * 0.11f) * 0.15f,
-                                                           sinf(t * 0.11f) * 0.15f);
+                if (_animateParamA) {
+                    _juliaC.x = _baseJuliaC.x + cosf(t * 0.30f) * 0.15f;
+                    _juliaC.y = _baseJuliaC.y + sinf(t * 0.30f) * 0.15f;
+                }
+                if (_animateParamB) {
+                    _juliaC.z = _baseJuliaC.z + cosf(t * 0.11f) * 0.15f;
+                    _juliaC.w = _baseJuliaC.w + sinf(t * 0.11f) * 0.15f;
+                }
                 break;
             case FractalTypeApollonian:
-                _ifsScale = _baseIfsScale + sinf(t * 0.25f) * 0.15f;
-                _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.18f) * 0.1f,
-                                                                 cosf(t * 0.14f) * 0.1f,
-                                                                 0.0f);
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.25f) * 0.15f;
+                if (_animateParamB) {
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.18f) * 0.1f,
+                                                                     cosf(t * 0.14f) * 0.1f,
+                                                                     0.0f);
+                }
                 break;
             case FractalTypeKIFS:
                 // Continuous spin (not a pulse) reads as a turning
                 // kaleidoscope; scale still breathes as the second param.
-                _kifsRotationAngle = _baseKifsRotationAngle + t * 0.15f;
-                _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.3f;
+                if (_animateParamA) _kifsRotationAngle = _baseKifsRotationAngle + t * 0.15f;
+                if (_animateParamB) _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.3f;
                 break;
             case FractalTypeHybrid:
-                _hybridWeight[0] = std::clamp(_baseHybridWeight[0] + sinf(t * 0.2f) * 0.3f, 0.0f, 1.0f);
-                _hybridWeight[1] = std::clamp(_baseHybridWeight[1] + cosf(t * 0.15f) * 0.3f, 0.0f, 1.0f);
+                if (_animateParamA) _hybridWeight[0] = std::clamp(_baseHybridWeight[0] + sinf(t * 0.2f) * 0.3f, 0.0f, 1.0f);
+                if (_animateParamB) _hybridWeight[1] = std::clamp(_baseHybridWeight[1] + cosf(t * 0.15f) * 0.3f, 0.0f, 1.0f);
                 break;
         }
     }
@@ -498,6 +517,146 @@ static const int kHybridPresetCount = 4;
 
     [commandBuffer presentDrawable:view.currentDrawable];
     [commandBuffer commit];
+}
+
+#pragma mark - Control panel: name lists
+
++ (NSArray<NSString *> *)fractalTypeNames {
+    return @[@"Mandelbulb", @"Mandelbox", @"Menger Sponge", @"Sierpinski Tetrahedron",
+             @"Quaternion Julia", @"Apollonian Gasket", @"Kaleidoscopic IFS", @"Hybrid"];
+}
+
++ (NSArray<NSString *> *)hybridFormulaNames {
+    return @[@"Off", @"Mandelbulb", @"Mandelbox", @"KIFS"];
+}
+
++ (NSArray<NSString *> *)hybridOpNames {
+    return @[@"Chain", @"Add", @"Subtract", @"Cross"];
+}
+
+#pragma mark - Control panel: getters
+
+- (int)fractalType { return _fractalType; }
+- (BOOL)juliaMode { return _juliaMode; }
+- (BOOL)shadowsEnabled { return _shadowsEnabled; }
+- (BOOL)animateParamA { return _animateParamA; }
+- (BOOL)animateParamB { return _animateParamB; }
+- (float)power { return _power; }
+- (int)maxIterations { return _maxIterations; }
+- (float)ifsScale { return _ifsScale; }
+- (float)mbScale { return _mbScale; }
+- (float)mbFixedRadius2 { return _mbFixedRadius2; }
+- (float)kifsRotationAngle { return _kifsRotationAngle; }
+
+- (int)hybridFormulaAtSlot:(int)slot {
+    return (slot >= 0 && slot < 3) ? _hybridFormula[slot] : HybridFormulaOff;
+}
+
+- (int)hybridOpAtSlot:(int)slot {
+    return (slot >= 0 && slot < 3) ? _hybridOp[slot] : HybridOpChain;
+}
+
+- (float)hybridWeightAtSlot:(int)slot {
+    return (slot >= 0 && slot < 3) ? _hybridWeight[slot] : 0.0f;
+}
+
+- (NSString *)parameterNameA {
+    switch (_fractalType) {
+        case FractalTypeMandelbulb:      return @"Power";
+        case FractalTypeMandelbox:       return @"Scale";
+        case FractalTypeMengerSponge:    return @"Fold Scale";
+        case FractalTypeSierpinskiTetra: return @"Fold Scale";
+        case FractalTypeQuaternionJulia: return @"C (x, y)";
+        case FractalTypeApollonian:      return @"Fold Scale";
+        case FractalTypeKIFS:            return @"Rotation";
+        case FractalTypeHybrid:          return @"Slot A Weight";
+        default:                          return @"Param A";
+    }
+}
+
+- (NSString *)parameterNameB {
+    switch (_fractalType) {
+        case FractalTypeMandelbulb:      return @"Bailout";
+        case FractalTypeMandelbox:       return @"Fixed Radius";
+        case FractalTypeMengerSponge:    return @"Fold Offset";
+        case FractalTypeSierpinskiTetra: return @"Fold Offset";
+        case FractalTypeQuaternionJulia: return @"C (z, w)";
+        case FractalTypeApollonian:      return @"Fold Offset";
+        case FractalTypeKIFS:            return @"Fold Scale";
+        case FractalTypeHybrid:          return @"Slot B Weight";
+        default:                          return @"Param B";
+    }
+}
+
+#pragma mark - Control panel: setters
+
+- (void)setJuliaMode:(BOOL)enabled {
+    if (_fractalType == FractalTypeMandelbulb) {
+        _juliaMode = enabled;
+    }
+}
+
+- (void)setShadowsEnabled:(BOOL)enabled {
+    _shadowsEnabled = enabled;
+}
+
+- (void)setAnimateParamA:(BOOL)enabled {
+    _animateParamA = enabled;
+}
+
+- (void)setAnimateParamB:(BOOL)enabled {
+    _animateParamB = enabled;
+}
+
+- (void)setPower:(float)value {
+    _power = std::clamp(value, 2.0f, 16.0f);
+    _basePower = _power;
+}
+
+- (void)setMaxIterations:(int)value {
+    _maxIterations = std::clamp(value, 1, 24);
+}
+
+- (void)setIfsScale:(float)value {
+    _ifsScale = value;
+    _baseIfsScale = value;
+}
+
+- (void)setMbScale:(float)value {
+    _mbScale = value;
+    _baseMbScale = value;
+}
+
+- (void)setMbFixedRadius2:(float)value {
+    _mbFixedRadius2 = std::max(value, 0.01f);
+    _baseMbFixedRadius2 = _mbFixedRadius2;
+}
+
+- (void)setKifsRotationAngle:(float)value {
+    _kifsRotationAngle = value;
+    _baseKifsRotationAngle = value;
+}
+
+- (void)setHybridFormula:(int)formula atSlot:(int)slot {
+    if (slot < 0 || slot >= 3) {
+        return;
+    }
+    _hybridFormula[slot] = std::clamp(formula, (int)HybridFormulaOff, (int)HybridFormulaKIFS);
+}
+
+- (void)setHybridOp:(int)op atSlot:(int)slot {
+    if (slot < 0 || slot >= 3) {
+        return;
+    }
+    _hybridOp[slot] = std::clamp(op, (int)HybridOpChain, (int)HybridOpCross);
+}
+
+- (void)setHybridWeight:(float)weight atSlot:(int)slot {
+    if (slot < 0 || slot >= 3) {
+        return;
+    }
+    _hybridWeight[slot] = std::clamp(weight, 0.0f, 1.0f);
+    _baseHybridWeight[slot] = _hybridWeight[slot];
 }
 
 @end

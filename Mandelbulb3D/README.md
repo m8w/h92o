@@ -23,6 +23,34 @@ sufficient.
 
 ## Controls
 
+The window has two ways to drive it, and both stay in sync — turning a
+knob on the control panel is exactly equivalent to the matching
+keyboard shortcut, and vice versa.
+
+**Control panel** (docked to the right of the render view):
+- A dropdown listing all 8 fractal types
+- Julia Mode / Soft Shadows checkboxes
+- Power and Iterations sliders (with live numeric readout)
+- Two independent "Animate ⟨parameter⟩" checkboxes, labeled for
+  whichever two parameters the current fractal type animates — check
+  either one on its own, or both, instead of only an all-or-nothing
+  toggle
+- A per-type section underneath with direct sliders for whatever that
+  formula's own parameters are (Mandelbox's scale/fixed-radius, the
+  IFS-family's fold scale, KIFS's rotation angle) — and for Hybrid,
+  full per-slot editing: a formula dropdown, an operator dropdown
+  (Chain/Add/Subtract/Cross), and a weight slider for each of the 3
+  slots, so any of the 4×4×3 combinations is directly reachable, not
+  just the 4 built-in presets
+- Reset button
+
+Because the panel polls the renderer a few times a second rather than
+owning state itself, it also reflects whatever animation or keyboard
+shortcuts are doing live — e.g. an animated slider visibly moves on
+its own.
+
+**Keyboard:**
+
 | Input                    | Effect                             |
 |---------------------------|-------------------------------------|
 | Click + drag               | Orbit the camera                   |
@@ -33,7 +61,7 @@ sufficient.
 | `+` / `-`                     | Increase/decrease fractal power   |
 | `[` / `]`                     | Decrease/increase iteration detail |
 | `,` / `.`                       | KIFS: adjust rotation angle. Hybrid: previous/next slot preset |
-| `Space`                        | Toggle animation (each fractal animates its own two defining parameters) |
+| `Space`                        | Toggle animation (both of the current fractal's parameters together) |
 | `S`                              | Toggle soft shadows              |
 | `R`                                | Reset camera + parameters to the current fractal's preset |
 
@@ -133,8 +161,15 @@ chaining mechanism, extended with CSG-style combine operators).
   `sceneDE()` dispatches to whichever formula is selected.
 - **`Renderer.mm`** — owns the Metal device/pipeline, holds the
   per-fractal parameter presets (`-applyPresetForFractalType:`), builds
-  the `Uniforms` each frame, and exposes the input-handling methods that
-  `ViewController.mm`'s `MetalView` calls into.
+  the `Uniforms` each frame, and exposes the same getter/setter/delta
+  methods to both `MetalView`'s keyboard handling and `ControlPanel`'s
+  controls — neither one owns state, they both just read and write the
+  renderer's.
+- **`ControlPanel.mm`** — the on-screen dropdown/slider/checkbox panel,
+  built with `NSStackView` (no storyboard/xib here either). Rebuilds
+  its per-type section only when the fractal type actually changes, and
+  otherwise polls the renderer a few times a second to stay in sync
+  with keyboard- or animation-driven changes.
 - **`ViewController.mm` / `AppDelegate.mm`** — plain AppKit, built
   entirely in code (no storyboard/xib) so there's nothing to open in
   Interface Builder.

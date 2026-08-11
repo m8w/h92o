@@ -12,6 +12,7 @@
 		C265371DBBEB4366B29749F9 /* Renderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00053A71793E4C8A97BB08ED /* Renderer.mm */; };
 		2C37DF04A2064404ADA29804 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = B30179F16ED44A6291F7F9F1 /* Shaders.metal */; };
 		D7D0BF4562C34E8898B178BE /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = DB32F692D4D845598BE23F26 /* main.mm */; };
+		81B941EDE58F4AD281518BBA /* ControlPanel.mm in Sources */ = {isa = PBXBuildFile; fileRef = B96EF0B071F1495EAB3B484F /* ControlPanel.mm */; };
 		E34D0390B4104C5E88A28B1D /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9127B6D7AA042BCAC809402 /* Cocoa.framework */; };
 		DEF56924981045C38F037668 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 873D69D8809C4F89B0AE802F /* Metal.framework */; };
 		9843667B53CD4F9C859E4422 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F2BFCA3CADC4809A2D8B5EA /* MetalKit.framework */; };
@@ -30,6 +31,8 @@
 		B30179F16ED44A6291F7F9F1 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		DB32F692D4D845598BE23F26 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		A5A62D3BD5934BB8918DAA04 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F6CAB4B4E8AC46548FFC21F8 /* ControlPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ControlPanel.h; sourceTree = "<group>"; };
+		B96EF0B071F1495EAB3B484F /* ControlPanel.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ControlPanel.mm; sourceTree = "<group>"; };
 		D9127B6D7AA042BCAC809402 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		873D69D8809C4F89B0AE802F /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		6F2BFCA3CADC4809A2D8B5EA /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
@@ -86,6 +89,8 @@
 				1AD02B8BF90A4343A3073A85 /* ViewController.mm */,
 				8DC6BE88CAB54D1BBC54AB63 /* Renderer.h */,
 				00053A71793E4C8A97BB08ED /* Renderer.mm */,
+				F6CAB4B4E8AC46548FFC21F8 /* ControlPanel.h */,
+				B96EF0B071F1495EAB3B484F /* ControlPanel.mm */,
 				589F7A7D4ACD4A14B1E11FFA /* Camera.h */,
 				7D188A41A47F496981AF9A2D /* ShaderTypes.h */,
 				B30179F16ED44A6291F7F9F1 /* Shaders.metal */,
@@ -165,6 +170,7 @@
 				4BE623C0ADE248D2AE4CD8E7 /* AppDelegate.mm in Sources */,
 				6BDD7589424C4F1F843F7AEA /* ViewController.mm in Sources */,
 				C265371DBBEB4366B29749F9 /* Renderer.mm in Sources */,
+				81B941EDE58F4AD281518BBA /* ControlPanel.mm in Sources */,
 				2C37DF04A2064404ADA29804 /* Shaders.metal in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
