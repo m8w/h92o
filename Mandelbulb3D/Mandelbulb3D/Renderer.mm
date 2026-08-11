@@ -10,9 +10,66 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <simd/simd.h>
 #include <algorithm>
+#include <cmath>
 
 static const NSUInteger kMaxFramesInFlight = 3;
 static const int kHybridPresetCount = 4;
+
+// ---- Color: small RGB<->HSV helpers, used to hue-shift the palette
+// for the "Animate Color" toggle without disturbing saturation/value. ----
+
+static simd_float3 rgbToHsv(simd_float3 c) {
+    float maxC = std::max(c.x, std::max(c.y, c.z));
+    float minC = std::min(c.x, std::min(c.y, c.z));
+    float delta = maxC - minC;
+
+    float h = 0.0f;
+    if (delta > 1e-6f) {
+        if (maxC == c.x) {
+            h = fmodf((c.y - c.z) / delta, 6.0f);
+        } else if (maxC == c.y) {
+            h = (c.z - c.x) / delta + 2.0f;
+        } else {
+            h = (c.x - c.y) / delta + 4.0f;
+        }
+        h *= 60.0f;
+        if (h < 0.0f) {
+            h += 360.0f;
+        }
+    }
+
+    float s = (maxC <= 1e-6f) ? 0.0f : (delta / maxC);
+    return simd_make_float3(h, s, maxC);
+}
+
+static simd_float3 hsvToRgb(simd_float3 hsv) {
+    float h = hsv.x, s = hsv.y, v = hsv.z;
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+    float m = v - c;
+
+    simd_float3 rgb;
+    if (h < 60.0f)        rgb = simd_make_float3(c, x, 0.0f);
+    else if (h < 120.0f)  rgb = simd_make_float3(x, c, 0.0f);
+    else if (h < 180.0f)  rgb = simd_make_float3(0.0f, c, x);
+    else if (h < 240.0f)  rgb = simd_make_float3(0.0f, x, c);
+    else if (h < 300.0f)  rgb = simd_make_float3(x, 0.0f, c);
+    else                   rgb = simd_make_float3(c, 0.0f, x);
+
+    return rgb + simd_make_float3(m, m, m);
+}
+
+static simd_float3 hueRotate(simd_float3 color, float degrees) {
+    if (degrees == 0.0f) {
+        return color;
+    }
+    simd_float3 hsv = rgbToHsv(color);
+    hsv.x = fmodf(hsv.x + degrees, 360.0f);
+    if (hsv.x < 0.0f) {
+        hsv.x += 360.0f;
+    }
+    return hsvToRgb(hsv);
+}
 
 @interface Renderer ()
 - (void)applyPresetForFractalType:(int)type;
@@ -28,6 +85,7 @@ static const int kHybridPresetCount = 4;
 
     Camera _camera;
     CFTimeInterval _startTime;
+    CFTimeInterval _lastFrameTime;
 
     // Shared render parameters.
     int _maxSteps;
@@ -35,13 +93,25 @@ static const int kHybridPresetCount = 4;
     float _maxDistance;
     float _aoStrength;
     BOOL _shadowsEnabled;
-    BOOL _animateParamA;
-    BOOL _animateParamB;
     int _maxIterations;
     int _fractalType;
-    simd_float3 _lightDirection;
     simd_float3 _colorA;
     simd_float3 _colorB;
+
+    // Animation: 5 independent toggles, identical across every fractal
+    // type, plus a global speed multiplier. Param A/B are each
+    // fractal's own two parameters (see -parameterNameA/B); the other
+    // three are universal and work the same regardless of fractal.
+    BOOL _animateParamA;
+    BOOL _animateParamB;
+    BOOL _animateCameraOrbit;
+    BOOL _animateLight;
+    BOOL _animateColor;
+    float _animationSpeed;
+    float _phaseA;          // accumulated phase, advances only while animateParamA is on
+    float _phaseB;          // accumulated phase, advances only while animateParamB is on
+    float _lightAngle;      // accumulated angle, advances only while animateLight is on
+    float _colorHueShift;   // accumulated degrees, advances only while animateColor is on
 
     // Mandelbulb / Juliabulb.
     float _power;
@@ -100,13 +170,17 @@ static const int kHybridPresetCount = 4;
     _frameSemaphore = dispatch_semaphore_create(kMaxFramesInFlight);
 
     _startTime = CFAbsoluteTimeGetCurrent();
+    _lastFrameTime = _startTime;
 
     _maxSteps = 256;
     _aoStrength = 0.9f;
     _shadowsEnabled = YES;
     _animateParamA = NO;
     _animateParamB = NO;
-    _lightDirection = simd_normalize(simd_make_float3(-0.5f, -1.0f, -0.4f));
+    _animateCameraOrbit = NO;
+    _animateLight = NO;
+    _animateColor = NO;
+    _animationSpeed = 1.0f;
 
     [self applyPresetForFractalType:FractalTypeMandelbulb];
 
@@ -251,6 +325,14 @@ static const int kHybridPresetCount = 4;
     _baseKifsRotationAngle = _kifsRotationAngle;
     _baseJuliaC = _juliaC;
 
+    // Param A/B animation phases restart clean so the new type's
+    // formulas begin exactly at their base value (sin(0) == 0); the
+    // 3 universal animations (camera/light/color) are user
+    // preferences that persist across type switches, same as
+    // shadows/animation-speed, so their phases are left alone.
+    _phaseA = 0.0f;
+    _phaseB = 0.0f;
+
     _camera.azimuth = 0.9f;
     _camera.elevation = 0.45f;
 }
@@ -340,9 +422,12 @@ static const int kHybridPresetCount = 4;
 }
 
 - (void)toggleAnimation {
-    BOOL turnOn = !(_animateParamA || _animateParamB);
+    BOOL turnOn = !(_animateParamA || _animateParamB || _animateCameraOrbit || _animateLight || _animateColor);
     _animateParamA = turnOn;
     _animateParamB = turnOn;
+    _animateCameraOrbit = turnOn;
+    _animateLight = turnOn;
+    _animateColor = turnOn;
 }
 
 - (void)toggleShadows {
@@ -353,6 +438,22 @@ static const int kHybridPresetCount = 4;
     if (_fractalType == FractalTypeMandelbulb) {
         _juliaMode = !_juliaMode;
     }
+}
+
+- (void)toggleCameraOrbit {
+    _animateCameraOrbit = !_animateCameraOrbit;
+}
+
+- (void)toggleLightAnimation {
+    _animateLight = !_animateLight;
+}
+
+- (void)toggleColorAnimation {
+    _animateColor = !_animateColor;
+}
+
+- (void)adjustAnimationSpeedByDelta:(float)delta {
+    _animationSpeed = std::clamp(_animationSpeed + delta, 0.1f, 4.0f);
 }
 
 - (void)resetCamera {
@@ -381,36 +482,45 @@ static const int kHybridPresetCount = 4;
     CFTimeInterval now = CFAbsoluteTimeGetCurrent();
     CFTimeInterval elapsed = now - _startTime;
 
-    // Each fractal has two independently-animatable parameters at
-    // different frequencies/phases, so combined motion reads as
-    // genuine movement rather than a single pulse. Either can be
-    // switched on/off on its own from the control panel, not just
-    // both together via Space.
+    // Per-frame delta time, not absolute elapsed time, drives every
+    // animation below: each active toggle advances its own phase by
+    // dt * animationSpeed. That makes turning a toggle on/off never
+    // jump (the phase simply stops/resumes advancing) and makes
+    // changing the speed slider apply immediately without rescaling
+    // whatever's already happened -- unlike computing everything as a
+    // function of absolute elapsed time, which would do both wrong.
+    float dt = std::clamp((float)(now - _lastFrameTime), 0.0f, 0.1f);
+    _lastFrameTime = now;
+    float phaseStep = dt * _animationSpeed;
+
+    // Two of a fractal's own parameters, independently toggleable --
+    // see -parameterNameA/B for what each type calls them.
+    if (_animateParamA) _phaseA += phaseStep;
+    if (_animateParamB) _phaseB += phaseStep;
     if (_animateParamA || _animateParamB) {
-        float t = (float)elapsed;
         switch (_fractalType) {
             case FractalTypeMandelbulb:
-                if (_animateParamA) _power = _basePower + sinf(t * 0.25f) * 2.5f;
-                if (_animateParamB) _bailout = _baseBailout + sinf(t * 0.11f) * 1.5f;
+                if (_animateParamA) _power = _basePower + sinf(_phaseA * 0.25f) * 2.5f;
+                if (_animateParamB) _bailout = _baseBailout + sinf(_phaseB * 0.11f) * 1.5f;
                 break;
             case FractalTypeMandelbox:
-                if (_animateParamA) _mbScale = _baseMbScale + sinf(t * 0.2f) * 0.5f;
-                if (_animateParamB) _mbFixedRadius2 = _baseMbFixedRadius2 + cosf(t * 0.13f) * 0.3f;
+                if (_animateParamA) _mbScale = _baseMbScale + sinf(_phaseA * 0.2f) * 0.5f;
+                if (_animateParamB) _mbFixedRadius2 = _baseMbFixedRadius2 + cosf(_phaseB * 0.13f) * 0.3f;
                 break;
             case FractalTypeMengerSponge:
-                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.15f) * 0.35f;
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(_phaseA * 0.15f) * 0.35f;
                 if (_animateParamB) {
-                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.09f) * 0.3f,
-                                                                     cosf(t * 0.12f) * 0.3f,
-                                                                     sinf(t * 0.07f) * 0.3f);
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(_phaseB * 0.09f) * 0.3f,
+                                                                     cosf(_phaseB * 0.12f) * 0.3f,
+                                                                     sinf(_phaseB * 0.07f) * 0.3f);
                 }
                 break;
             case FractalTypeSierpinskiTetra:
-                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.25f;
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(_phaseA * 0.2f) * 0.25f;
                 if (_animateParamB) {
-                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.16f) * 0.2f,
-                                                                     cosf(t * 0.10f) * 0.2f,
-                                                                     sinf(t * 0.13f) * 0.2f);
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(_phaseB * 0.16f) * 0.2f,
+                                                                     cosf(_phaseB * 0.10f) * 0.2f,
+                                                                     sinf(_phaseB * 0.13f) * 0.2f);
                 }
                 break;
             case FractalTypeQuaternionJulia:
@@ -418,33 +528,46 @@ static const int kHybridPresetCount = 4;
                 // (z,w) at another, composed into a Lissajous-like path
                 // through the quaternion constant's 4D space.
                 if (_animateParamA) {
-                    _juliaC.x = _baseJuliaC.x + cosf(t * 0.30f) * 0.15f;
-                    _juliaC.y = _baseJuliaC.y + sinf(t * 0.30f) * 0.15f;
+                    _juliaC.x = _baseJuliaC.x + cosf(_phaseA * 0.30f) * 0.15f;
+                    _juliaC.y = _baseJuliaC.y + sinf(_phaseA * 0.30f) * 0.15f;
                 }
                 if (_animateParamB) {
-                    _juliaC.z = _baseJuliaC.z + cosf(t * 0.11f) * 0.15f;
-                    _juliaC.w = _baseJuliaC.w + sinf(t * 0.11f) * 0.15f;
+                    _juliaC.z = _baseJuliaC.z + cosf(_phaseB * 0.11f) * 0.15f;
+                    _juliaC.w = _baseJuliaC.w + sinf(_phaseB * 0.11f) * 0.15f;
                 }
                 break;
             case FractalTypeApollonian:
-                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(t * 0.25f) * 0.15f;
+                if (_animateParamA) _ifsScale = _baseIfsScale + sinf(_phaseA * 0.25f) * 0.15f;
                 if (_animateParamB) {
-                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(t * 0.18f) * 0.1f,
-                                                                     cosf(t * 0.14f) * 0.1f,
+                    _ifsOffset = _baseIfsOffset + simd_make_float3(sinf(_phaseB * 0.18f) * 0.1f,
+                                                                     cosf(_phaseB * 0.14f) * 0.1f,
                                                                      0.0f);
                 }
                 break;
             case FractalTypeKIFS:
                 // Continuous spin (not a pulse) reads as a turning
                 // kaleidoscope; scale still breathes as the second param.
-                if (_animateParamA) _kifsRotationAngle = _baseKifsRotationAngle + t * 0.15f;
-                if (_animateParamB) _ifsScale = _baseIfsScale + sinf(t * 0.2f) * 0.3f;
+                if (_animateParamA) _kifsRotationAngle = _baseKifsRotationAngle + _phaseA * 0.15f;
+                if (_animateParamB) _ifsScale = _baseIfsScale + sinf(_phaseB * 0.2f) * 0.3f;
                 break;
             case FractalTypeHybrid:
-                if (_animateParamA) _hybridWeight[0] = std::clamp(_baseHybridWeight[0] + sinf(t * 0.2f) * 0.3f, 0.0f, 1.0f);
-                if (_animateParamB) _hybridWeight[1] = std::clamp(_baseHybridWeight[1] + cosf(t * 0.15f) * 0.3f, 0.0f, 1.0f);
+                if (_animateParamA) _hybridWeight[0] = std::clamp(_baseHybridWeight[0] + sinf(_phaseA * 0.2f) * 0.3f, 0.0f, 1.0f);
+                if (_animateParamB) _hybridWeight[1] = std::clamp(_baseHybridWeight[1] + cosf(_phaseB * 0.15f) * 0.3f, 0.0f, 1.0f);
                 break;
         }
+    }
+
+    // Three more animations that work identically for every fractal
+    // type, since they act on the camera/light/palette rather than on
+    // fractal-specific parameters.
+    if (_animateCameraOrbit) {
+        _camera.azimuth += phaseStep * 0.3f;
+    }
+    if (_animateLight) {
+        _lightAngle += phaseStep * 0.4f;
+    }
+    if (_animateColor) {
+        _colorHueShift += phaseStep * 40.0f;
     }
 
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
@@ -503,9 +626,10 @@ static const int kHybridPresetCount = 4;
     uniforms.hybridOps = simd_make_int4(_hybridOp[0], _hybridOp[1], _hybridOp[2], 0);
     uniforms.hybridWeights = simd_make_float4(_hybridWeight[0], _hybridWeight[1], _hybridWeight[2], 0.0f);
 
-    uniforms.lightDirection = simd_make_float4(_lightDirection, 0.0f);
-    uniforms.baseColorA = simd_make_float4(_colorA, 0.0f);
-    uniforms.baseColorB = simd_make_float4(_colorB, 0.0f);
+    simd_float3 lightDirection = simd_normalize(simd_make_float3(cosf(_lightAngle) * -0.7f, -1.0f, sinf(_lightAngle) * -0.7f));
+    uniforms.lightDirection = simd_make_float4(lightDirection, 0.0f);
+    uniforms.baseColorA = simd_make_float4(hueRotate(_colorA, _colorHueShift), 0.0f);
+    uniforms.baseColorB = simd_make_float4(hueRotate(_colorB, _colorHueShift), 0.0f);
 
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
     encoder.label = @"Mandelbulb Encoder";
@@ -541,6 +665,10 @@ static const int kHybridPresetCount = 4;
 - (BOOL)shadowsEnabled { return _shadowsEnabled; }
 - (BOOL)animateParamA { return _animateParamA; }
 - (BOOL)animateParamB { return _animateParamB; }
+- (BOOL)animateCameraOrbit { return _animateCameraOrbit; }
+- (BOOL)animateLight { return _animateLight; }
+- (BOOL)animateColor { return _animateColor; }
+- (float)animationSpeed { return _animationSpeed; }
 - (float)power { return _power; }
 - (int)maxIterations { return _maxIterations; }
 - (float)ifsScale { return _ifsScale; }
@@ -606,6 +734,22 @@ static const int kHybridPresetCount = 4;
 
 - (void)setAnimateParamB:(BOOL)enabled {
     _animateParamB = enabled;
+}
+
+- (void)setAnimateCameraOrbit:(BOOL)enabled {
+    _animateCameraOrbit = enabled;
+}
+
+- (void)setAnimateLight:(BOOL)enabled {
+    _animateLight = enabled;
+}
+
+- (void)setAnimateColor:(BOOL)enabled {
+    _animateColor = enabled;
+}
+
+- (void)setAnimationSpeed:(float)speed {
+    _animationSpeed = std::clamp(speed, 0.1f, 4.0f);
 }
 
 - (void)setPower:(float)value {

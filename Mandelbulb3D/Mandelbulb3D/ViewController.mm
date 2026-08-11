@@ -91,6 +91,24 @@ static const CGFloat kControlPanelWidth = 260.0;
         case 'J':
             [self.renderer toggleJuliaMode];
             break;
+        case 'o':
+        case 'O':
+            [self.renderer toggleCameraOrbit];
+            break;
+        case 'l':
+        case 'L':
+            [self.renderer toggleLightAnimation];
+            break;
+        case 'c':
+        case 'C':
+            [self.renderer toggleColorAnimation];
+            break;
+        case '9':
+            [self.renderer adjustAnimationSpeedByDelta:-0.25f];
+            break;
+        case '0':
+            [self.renderer adjustAnimationSpeedByDelta:0.25f];
+            break;
         case 'r':
         case 'R':
             [self.renderer resetCamera];
@@ -154,7 +172,8 @@ static const CGFloat kControlPanelWidth = 260.0;
 
     NSTextField *hud = [NSTextField labelWithString:
         @"Drag: orbit  Scroll/Pinch: zoom  1-8: fractal  Tab/⇧Tab: cycle  J: julia mode\n"
-        @"+/-: power  [ ]: detail  ,/.: KIFS spin / hybrid preset  Space: animate  S: shadows  R: reset"];
+        @"+/-: power  [ ]: detail  ,/.: KIFS spin / hybrid preset  R: reset\n"
+        @"Space: animate all  O: orbit  L: light  C: color  9/0: speed  S: shadows"];
     hud.textColor = [NSColor colorWithWhite:1.0 alpha:0.75];
     hud.backgroundColor = [NSColor colorWithWhite:0.0 alpha:0.35];
     hud.drawsBackground = YES;
@@ -162,7 +181,7 @@ static const CGFloat kControlPanelWidth = 260.0;
     hud.bezeled = NO;
     hud.editable = NO;
     hud.selectable = NO;
-    hud.maximumNumberOfLines = 2;
+    hud.maximumNumberOfLines = 3;
     hud.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:hud];
 

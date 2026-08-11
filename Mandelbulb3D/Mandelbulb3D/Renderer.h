@@ -25,6 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)toggleAnimation;
 - (void)toggleShadows;
 - (void)toggleJuliaMode;
+- (void)toggleCameraOrbit;
+- (void)toggleLightAnimation;
+- (void)toggleColorAnimation;
+- (void)adjustAnimationSpeedByDelta:(float)delta;
 - (void)resetCamera;
 
 // Secondary per-type control: KIFS's per-iteration rotation angle,
@@ -52,6 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)shadowsEnabled;
 - (BOOL)animateParamA;
 - (BOOL)animateParamB;
+- (BOOL)animateCameraOrbit;
+- (BOOL)animateLight;
+- (BOOL)animateColor;
+- (float)animationSpeed;
 - (float)power;
 - (int)maxIterations;
 - (float)ifsScale;
@@ -75,6 +83,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setShadowsEnabled:(BOOL)enabled;
 - (void)setAnimateParamA:(BOOL)enabled;
 - (void)setAnimateParamB:(BOOL)enabled;
+- (void)setAnimateCameraOrbit:(BOOL)enabled;
+- (void)setAnimateLight:(BOOL)enabled;
+- (void)setAnimateColor:(BOOL)enabled;
+- (void)setAnimationSpeed:(float)speed;
 - (void)setPower:(float)value;
 - (void)setMaxIterations:(int)value;
 - (void)setIfsScale:(float)value;

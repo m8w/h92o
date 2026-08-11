@@ -31,10 +31,16 @@ keyboard shortcut, and vice versa.
 - A dropdown listing all 8 fractal types
 - Julia Mode / Soft Shadows checkboxes
 - Power and Iterations sliders (with live numeric readout)
-- Two independent "Animate ⟨parameter⟩" checkboxes, labeled for
-  whichever two parameters the current fractal type animates — check
-  either one on its own, or both, instead of only an all-or-nothing
-  toggle
+- **5 independent animation toggles, identical for every fractal type**,
+  plus a global speed slider:
+  - **Animate A** / **Animate B** — each fractal's own two parameters,
+    labeled for whichever ones the current type animates (Mandelbulb's
+    power/bailout, Mandelbox's scale/fixed-radius, Quaternion Julia's
+    two rotating constant-pairs, Hybrid's slot A/B weights, etc.)
+  - **Camera Auto-Orbit** — the camera keeps spinning on its own
+  - **Animate Light** — the light source orbits the scene
+  - **Animate Color** — the palette cycles through hue continuously
+  - **Speed** — one multiplier that scales all five at once
 - A per-type section underneath with direct sliders for whatever that
   formula's own parameters are (Mandelbox's scale/fixed-radius, the
   IFS-family's fold scale, KIFS's rotation angle) — and for Hybrid,
@@ -61,9 +67,13 @@ its own.
 | `+` / `-`                     | Increase/decrease fractal power   |
 | `[` / `]`                     | Decrease/increase iteration detail |
 | `,` / `.`                       | KIFS: adjust rotation angle. Hybrid: previous/next slot preset |
-| `Space`                        | Toggle animation (both of the current fractal's parameters together) |
-| `S`                              | Toggle soft shadows              |
-| `R`                                | Reset camera + parameters to the current fractal's preset |
+| `Space`                        | Toggle all 5 animations together  |
+| `O`                              | Toggle camera auto-orbit         |
+| `L`                              | Toggle light animation            |
+| `C`                                | Toggle color animation          |
+| `9` / `0`                           | Decrease/increase animation speed |
+| `S`                                  | Toggle soft shadows            |
+| `R`                                    | Reset camera + parameters to the current fractal's preset |
 
 The window title always shows which fractal is active.
 
@@ -164,7 +174,15 @@ chaining mechanism, extended with CSG-style combine operators).
   the `Uniforms` each frame, and exposes the same getter/setter/delta
   methods to both `MetalView`'s keyboard handling and `ControlPanel`'s
   controls — neither one owns state, they both just read and write the
-  renderer's.
+  renderer's. Every animation (the per-type A/B parameters plus the 3
+  universal ones) is driven by its own accumulated phase advanced by
+  `dt * animationSpeed` each frame, not by a function of absolute
+  elapsed time — so toggling one on/off never jumps, and changing the
+  speed slider applies immediately without retroactively rescaling
+  whatever's already happened. Color animation hue-rotates the palette
+  through a small RGB↔HSV round trip rather than blending toward a
+  fixed rainbow, so saturation/value (and thus each fractal's color
+  character) stay intact while just the hue cycles.
 - **`ControlPanel.mm`** — the on-screen dropdown/slider/checkbox panel,
   built with `NSStackView` (no storyboard/xib here either). Rebuilds
   its per-type section only when the fractal type actually changes, and

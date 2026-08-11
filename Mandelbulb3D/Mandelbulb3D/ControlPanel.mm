@@ -24,6 +24,11 @@ static const CGFloat kValueLabelWidth = 48.0;
     NSButton *_shadowsCheckbox;
     NSButton *_animateACheckbox;
     NSButton *_animateBCheckbox;
+    NSButton *_animateOrbitCheckbox;
+    NSButton *_animateLightCheckbox;
+    NSButton *_animateColorCheckbox;
+    NSSlider *_speedSlider;
+    NSTextField *_speedValueLabel;
 
     NSSlider *_powerSlider;
     NSTextField *_powerValueLabel;
@@ -163,11 +168,30 @@ static const CGFloat kValueLabelWidth = 48.0;
     _iterationsValueLabel = [self valueLabel];
     [_mainStack addArrangedSubview:[self rowWithViews:@[iterationsLabel, _iterationsSlider, _iterationsValueLabel]]];
 
+    NSTextField *animateTitle = [self labelWithText:@"ANIMATE (5 independent toggles)"];
+    [_mainStack addArrangedSubview:animateTitle];
+
     _animateACheckbox = [NSButton checkboxWithTitle:@"Animate A" target:self action:@selector(animateACheckboxChanged:)];
     [_mainStack addArrangedSubview:_animateACheckbox];
 
     _animateBCheckbox = [NSButton checkboxWithTitle:@"Animate B" target:self action:@selector(animateBCheckboxChanged:)];
     [_mainStack addArrangedSubview:_animateBCheckbox];
+
+    _animateOrbitCheckbox = [NSButton checkboxWithTitle:@"Camera Auto-Orbit" target:self action:@selector(animateOrbitCheckboxChanged:)];
+    [_mainStack addArrangedSubview:_animateOrbitCheckbox];
+
+    _animateLightCheckbox = [NSButton checkboxWithTitle:@"Animate Light" target:self action:@selector(animateLightCheckboxChanged:)];
+    [_mainStack addArrangedSubview:_animateLightCheckbox];
+
+    _animateColorCheckbox = [NSButton checkboxWithTitle:@"Animate Color" target:self action:@selector(animateColorCheckboxChanged:)];
+    [_mainStack addArrangedSubview:_animateColorCheckbox];
+
+    NSTextField *speedLabel = [self labelWithText:@"Speed"];
+    speedLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [speedLabel.widthAnchor constraintEqualToConstant:70].active = YES;
+    _speedSlider = [self sliderWithMin:0.1 max:4.0 target:self action:@selector(speedSliderChanged:)];
+    _speedValueLabel = [self valueLabel];
+    [_mainStack addArrangedSubview:[self rowWithViews:@[speedLabel, _speedSlider, _speedValueLabel]]];
 
     NSBox *divider = [[NSBox alloc] init];
     divider.boxType = NSBoxSeparator;
@@ -304,6 +328,11 @@ static const CGFloat kValueLabelWidth = 48.0;
     _animateBCheckbox.title = [NSString stringWithFormat:@"Animate %@", [_renderer parameterNameB]];
     _animateACheckbox.state = [_renderer animateParamA] ? NSControlStateValueOn : NSControlStateValueOff;
     _animateBCheckbox.state = [_renderer animateParamB] ? NSControlStateValueOn : NSControlStateValueOff;
+    _animateOrbitCheckbox.state = [_renderer animateCameraOrbit] ? NSControlStateValueOn : NSControlStateValueOff;
+    _animateLightCheckbox.state = [_renderer animateLight] ? NSControlStateValueOn : NSControlStateValueOff;
+    _animateColorCheckbox.state = [_renderer animateColor] ? NSControlStateValueOn : NSControlStateValueOff;
+    _speedSlider.floatValue = [_renderer animationSpeed];
+    _speedValueLabel.stringValue = [NSString stringWithFormat:@"%.2fx", [_renderer animationSpeed]];
 
     _powerSlider.floatValue = [_renderer power];
     _powerValueLabel.stringValue = [NSString stringWithFormat:@"%.2f", [_renderer power]];
@@ -361,6 +390,23 @@ static const CGFloat kValueLabelWidth = 48.0;
 
 - (void)animateBCheckboxChanged:(NSButton *)sender {
     [_renderer setAnimateParamB:(sender.state == NSControlStateValueOn)];
+}
+
+- (void)animateOrbitCheckboxChanged:(NSButton *)sender {
+    [_renderer setAnimateCameraOrbit:(sender.state == NSControlStateValueOn)];
+}
+
+- (void)animateLightCheckboxChanged:(NSButton *)sender {
+    [_renderer setAnimateLight:(sender.state == NSControlStateValueOn)];
+}
+
+- (void)animateColorCheckboxChanged:(NSButton *)sender {
+    [_renderer setAnimateColor:(sender.state == NSControlStateValueOn)];
+}
+
+- (void)speedSliderChanged:(NSSlider *)sender {
+    [_renderer setAnimationSpeed:sender.floatValue];
+    _speedValueLabel.stringValue = [NSString stringWithFormat:@"%.2fx", sender.floatValue];
 }
 
 - (void)powerSliderChanged:(NSSlider *)sender {
