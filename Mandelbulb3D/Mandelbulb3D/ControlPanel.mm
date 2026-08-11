@@ -5,6 +5,7 @@
 
 #import "ControlPanel.h"
 #import "Renderer.h"
+#import "ShaderTypes.h"
 
 static const CGFloat kRowSpacing = 6.0;
 static const CGFloat kSliderWidth = 150.0;
